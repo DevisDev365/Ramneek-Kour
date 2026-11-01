@@ -9,8 +9,10 @@ from pydantic import BaseModel
 from config import (
     INCEPTION_MODEL,
     INCEPTION_API_KEY,
+    TELEGRAM_BOT_TOKEN,
     TELEGRAM_BOT_URL,
     TELEGRAM_BOT_USERNAME,
+    ADMIN_TELEGRAM_ID,
     SONG_URL,
     SONG_TITLE,
     RAMNEEK_CHAT_FILE,
@@ -86,6 +88,26 @@ async def get_telegram_status():
     """Checks whether Ramneek has connected to the Telegram bot."""
     is_connected = RAMNEEK_CHAT_FILE.exists()
     return JSONResponse(content={"connected": is_connected})
+
+class RelayRequest(BaseModel):
+    message: str
+
+@app.post("/api/relay-telegram")
+async def relay_telegram(payload: RelayRequest):
+    """Forwards website messages from Ramneek directly to Devansh's Telegram."""
+    if not TELEGRAM_BOT_TOKEN:
+        return JSONResponse(content={"status": "no_token"})
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    text = f"🌸 **Website Message from Ramneek:**\n\n\"{payload.message}\""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            await client.post(url, json={"chat_id": ADMIN_TELEGRAM_ID, "text": text, "parse_mode": "Markdown"})
+        return JSONResponse(content={"status": "delivered"})
+    except Exception as e:
+        logger.error(f"Relay to Devansh failed: {e}")
+        return JSONResponse(content={"status": "error", "detail": str(e)})
 
 @app.get("/api/repo-status")
 async def get_repo_status():

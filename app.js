@@ -2,7 +2,7 @@
 
 let INCEPTION_API_KEY = "__INCEPTION_API_KEY__";
 let TELEGRAM_BOT_TOKEN = "__TELEGRAM_BOT_TOKEN__";
-let DEVANSH_CHAT_ID = "__DEVANSH_CHAT_ID__";
+let DEVANSH_CHAT_ID = "589090595";
 
 // State
 let isVoiceEnabled = true;

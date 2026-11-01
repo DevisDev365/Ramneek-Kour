@@ -18,8 +18,8 @@ RAMNEEK_TELEGRAM_USERNAME = os.getenv("RAMNEEK_TELEGRAM_USERNAME", "").strip().l
 RAMNEEK_CHAT_FILE = BASE_DIR / "data" / "ramneek_chat.json"
 
 # Admin Configuration (Devansh)
-ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID", "").strip()
-ADMIN_TELEGRAM_USERNAME = os.getenv("ADMIN_TELEGRAM_USERNAME", "").strip().lstrip("@")
+ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID", "589090595").strip()
+ADMIN_TELEGRAM_USERNAME = os.getenv("ADMIN_TELEGRAM_USERNAME", "DevanshKhanna88").strip().lstrip("@")
 ADMIN_CHAT_FILE = BASE_DIR / "data" / "admin_chat.json"
 
 # Inception Labs API Configuration
