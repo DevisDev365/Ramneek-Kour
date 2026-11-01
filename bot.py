@@ -3,7 +3,7 @@ import asyncio
 import json
 import uuid
 from typing import Dict, Any
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     ApplicationBuilder,
@@ -121,16 +121,24 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         msg = (
             f"👑 **Hello Devansh (Admin)**\n\n"
+            f"✅ You are recognized as the Administrator (Chat ID: `{chat_id}`).\n"
             f"I am your personal AI Broker & Assistant for Ramneek.\n\n"
             f"• **Ramneek's Telegram**: {status_line}\n"
             f"• **Repository**: `https://github.com/DevisDev365/Ramneek-Kour.git`\n\n"
             f"**How the Broker Mode works:**\n"
-            f"1. Type `/check` to send Ramneek the check-in ping.\n"
-            f"2. Whenever she replies or asks a question, I will forward it to you instantly with an AI suggested response.\n"
+            f"1. Tap **🌸 Check on Ramneek** or type `/check` to ping her.\n"
+            f"2. Whenever she asks or says anything, I will forward it to you instantly with an AI suggested response.\n"
             f"3. You can tap **Approve**, swipe-right to reply, or type any message and I'll deliver it to her!\n"
             f"4. Send custom message anytime: `/reply <your message>`"
         )
-        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🌸 Check on Ramneek (/check)", callback_data="btn_check")],
+            [InlineKeyboardButton("📊 Connection Status (/status)", callback_data="btn_status")],
+            [InlineKeyboardButton("🎵 Dedicate Song (/song)", callback_data="btn_song")],
+        ])
+
+        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
         return
 
     # 2. RAMNEEK FLOW
@@ -151,7 +159,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await notify_admin(
         context,
         f"🎉 **Ramneek just opened and connected to the Telegram bot!**\n"
-        f"User: @{user.username or user.first_name} (`{chat_id}`)"
+        f"User: @{user.username or user.first_name} (Chat ID: `{chat_id}`)"
     )
 
     connect_and_sync_repo()
@@ -177,17 +185,17 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not ramneek_chat_id:
         await update.message.reply_text(
             "⚠️ **Ramneek hasn't opened the bot yet.**\n\n"
-            "As soon as she taps the **Connect on Telegram** button on the website and clicks **START**:\n"
+            "As soon as she taps the **Start Chat on Telegram Bot** button on the website and clicks **START**:\n"
             "👉 `https://t.me/devansh_bot_for_ramneek_bot`\n\n"
-            "I will immediately have her chat ID and deliver your check-in ping!"
+            "I will automatically capture her Chat ID and deliver your check-in ping!"
         )
         return
 
     connect_and_sync_repo()
 
     check_message = (
-        "🌸 **Hi Ramneek, I'm Devansh's assistant.**\n\n"
-        "Devansh wanted to check in and see if you are doing okay today."
+        "🌸 **Hi Ramneek, Devansh wants to know if you are okay.**\n\n"
+        "He asked me to check in on you. Please let me know how you are doing 🤍"
     )
 
     try:
@@ -197,10 +205,69 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.message.reply_text(
             f"✅ **Check-in sent to Ramneek!**\n\n"
-            f"I asked her if she is doing okay. When she responds, I will consult you with an AI draft before replying! 🌸"
+            f"I asked her: *\"Devansh wants to know if you are okay.\"*\n"
+            f"When she responds, I will consult you with an AI draft before replying! 🌸",
+            parse_mode=ParseMode.MARKDOWN
         )
     except Exception as e:
         await update.message.reply_text(f"❌ Could not deliver message to Ramneek: {e}")
+
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command: Displays current status of Ramneek and the bot."""
+    user = update.effective_user
+    if not is_admin(user):
+        return
+
+    ramneek_data = None
+    if RAMNEEK_CHAT_FILE.exists():
+        try:
+            with open(RAMNEEK_CHAT_FILE, "r", encoding="utf-8") as f:
+                ramneek_data = json.load(f)
+        except Exception:
+            pass
+
+    if ramneek_data:
+        r_status = (
+            f"✅ **Connected**\n"
+            f"• Username: @{ramneek_data.get('username') or 'N/A'}\n"
+            f"• Name: {ramneek_data.get('first_name', 'Ramneek')}\n"
+            f"• Chat ID: `{ramneek_data.get('chat_id')}`"
+        )
+    else:
+        r_status = "⚠️ **Waiting for Ramneek**\n(She hasn't tapped START on the bot yet)"
+
+    repo_info = get_repo_summary()
+    status_text = (
+        f"📊 **Bot & Connection Status**\n\n"
+        f"👑 **Admin**: Devansh Khanna (`{ADMIN_TELEGRAM_ID}`)\n\n"
+        f"🌸 **Ramneek's Telegram**:\n{r_status}\n\n"
+        f"📦 **Git Repository**: `{repo_info}`\n"
+        f"🤖 **AI Model**: `{INCEPTION_MODEL}` (Inception Labs)\n"
+        f"🌐 **Website**: [ramneek.devanshkhanna.online](https://ramneek.devanshkhanna.online)"
+    )
+    await update.message.reply_text(status_text, parse_mode=ParseMode.MARKDOWN)
+
+async def song_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command: Sends song dedication to Ramneek on Telegram."""
+    if not is_admin(update.effective_user):
+        return
+
+    ramneek_chat_id = get_saved_chat_id(RAMNEEK_CHAT_FILE)
+    if not ramneek_chat_id:
+        await update.message.reply_text("⚠️ Ramneek hasn't connected to the bot yet.")
+        return
+
+    connect_and_sync_repo()
+    msg = (
+        f"🎶 **Devansh wants you to listen to this song:**\n\n"
+        f"🎵 **[{SONG_TITLE}]({SONG_URL})**\n\n"
+        f"Take good care of yourself 🤍"
+    )
+    try:
+        await context.bot.send_message(chat_id=ramneek_chat_id, text=msg, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text("✅ Song dedication sent to Ramneek!")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Failed to send: {e}")
 
 async def reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin command: Sends a custom reply directly to Ramneek."""
@@ -225,7 +292,7 @@ async def reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Failed to send: {e}")
 
 async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles inline button clicks from Devansh (e.g. Approve AI Reply, Deliver Custom)."""
+    """Handles inline button clicks from Devansh (e.g. Approve AI Reply, Deliver Custom, Menu)."""
     query = update.callback_query
     await query.answer()
 
@@ -233,6 +300,17 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         return
 
     data = query.data
+
+    # Menu Shortcuts
+    if data == "btn_check":
+        await check_command(update, context)
+        return
+    elif data == "btn_status":
+        await status_command(update, context)
+        return
+    elif data == "btn_song":
+        await song_command(update, context)
+        return
 
     # 1. Approve AI Draft
     if data.startswith("approve_"):
@@ -299,12 +377,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_admin(user):
         lower_text = user_text.lower().strip()
 
-        # Check for natural language trigger: "check on ramneek"
-        if any(trigger in lower_text for trigger in ["check on ramneek", "check ramneek", "/check", "nudge", "ping ramneek"]):
+        # Check for natural language triggers for /check
+        check_triggers = [
+            "check on ramneek", "check ramneek", "check on her", "check her",
+            "ping ramneek", "ping her", "nudge", "is she okay",
+            "ask if she is okay", "/check", "check"
+        ]
+        if any(trigger == lower_text or trigger in lower_text for trigger in check_triggers):
             await check_command(update, context)
             return
 
-        # Check if Devansh replied to a forwarded message from Ramneek
+        # Check for status
+        if lower_text in ["status", "/status", "bot status"]:
+            await status_command(update, context)
+            return
+
+        # Check for song
+        if lower_text in ["song", "/song", "send song"]:
+            await song_command(update, context)
+            return
+
+        # Check if Devansh replied directly to a forwarded message from Ramneek
         reply_to = update.message.reply_to_message
         ramneek_chat_id = get_saved_chat_id(RAMNEEK_CHAT_FILE)
 
@@ -338,9 +431,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(
             "👑 **Devansh, here is how to control me:**\n\n"
-            "• Type `check on ramneek` or `/check` to ping her.\n"
+            "• Type `check on her` or `/check` to ping Ramneek.\n"
             "• To answer her, simply **swipe right / reply** to any message I forward to you!\n"
-            "• Or send custom text: `/reply <message>`"
+            "• Or send custom text: `/reply <message>`\n"
+            "• Check status: `/status`"
         )
         return
 
@@ -359,9 +453,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "content": (
                     "You are Devansh's gentle assistant acting as a broker between Devansh and Ramneek. "
                     "Ramneek and Devansh are not on talking terms right now. Devansh cares deeply and wanted to ensure she is doing fine. "
-                    f"Ramneek just sent: '{user_text}'. "
+                    f"Ramneek just asked / said: '{user_text}'. "
                     "Suggest a single, warm, gentle, empathetic, non-pushy response of 1-2 sentences in natural conversational Hindi/English. "
-                    "If she asks a personal question that requires Devansh's personal perspective, acknowledge gently that you will check with Devansh. "
+                    "If she asks a personal question that requires Devansh's personal perspective, draft a response that gently says Devansh will answer her, or answers warmly without overstepping. "
                     "Output ONLY the exact reply text to Ramneek without any preamble, quotes, bullet points, or options."
                 )
             },
@@ -386,11 +480,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
 
     admin_notification = (
-        f"📬 **Ramneek just sent a message:**\n\n"
+        f"📬 **Devansh, Ramneek is saying this to the bot:**\n\n"
         f"🗣️ *\"{user_text}\"*\n\n"
-        f"💡 **Suggested AI Response:**\n"
+        f"🤖 **AI Suggested Reply:**\n"
         f"_{ai_draft}_\n\n"
-        f"👇 *Tap Approve below, or simply swipe-right / reply to this message with your own words:*"
+        f"❓ **What should I reply with?**\n"
+        f"• Tap **[ ✅ Approve & Send AI Reply ]** below to deliver the suggested reply.\n"
+        f"• Or simply **swipe right / reply** to this message with your own words!"
     )
 
     # Relay to Devansh
@@ -398,6 +494,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Let Ramneek know the message was received gently
     await update.effective_chat.send_action(ChatAction.TYPING)
+
+async def post_init(application):
+    """Register commands in Telegram so they show in the menu."""
+    commands = [
+        BotCommand("check", "Ping Ramneek to check if she is okay"),
+        BotCommand("status", "Check if Ramneek is connected & bot health"),
+        BotCommand("reply", "Send a custom reply to Ramneek (<text>)"),
+        BotCommand("song", "Send the song dedication to Ramneek"),
+        BotCommand("start", "Open the admin control dashboard"),
+    ]
+    try:
+        await application.bot.set_my_commands(commands)
+        logger.info("Bot commands successfully registered with Telegram!")
+    except Exception as e:
+        logger.warning(f"Could not register commands with Telegram: {e}")
 
 def main():
     if not TELEGRAM_BOT_TOKEN:
@@ -408,13 +519,17 @@ def main():
     repo_status = connect_and_sync_repo()
     print(f"📦 Repository: {'CONNECTED' if repo_status['success'] else 'FAILED'}")
 
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).post_init(post_init).build()
 
     # Handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("admin", start_command))
     app.add_handler(CommandHandler("check", check_command))
+    app.add_handler(CommandHandler("checkonher", check_command))
+    app.add_handler(CommandHandler("ping", check_command))
     app.add_handler(CommandHandler("nudge", check_command))
+    app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("song", song_command))
     app.add_handler(CommandHandler("reply", reply_command))
     app.add_handler(CommandHandler("say", reply_command))
     app.add_handler(CallbackQueryHandler(handle_callback_query))
