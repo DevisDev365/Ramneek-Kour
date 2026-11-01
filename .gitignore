@@ -1,0 +1,22 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments & Dependencies
+.env
+.env.local
+.venv
+env/
+venv/
+node_modules/
+dist/
+build/
+
+# Operating System
+.DS_Store
+Thumbs.db
+
+# Logs & temp
+*.log
+.cache/
