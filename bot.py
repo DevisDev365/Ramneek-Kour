@@ -24,8 +24,6 @@ from config import (
     ADMIN_CHAT_FILE,
     SYNC_REPO_ON_MESSAGE,
     INCEPTION_MODEL,
-    SONG_URL,
-    SONG_TITLE,
 )
 from git_sync import connect_and_sync_repo, get_repo_summary
 from llm_client import InceptionLLMClient
@@ -135,7 +133,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🌸 Check on Ramneek (/check)", callback_data="btn_check")],
             [InlineKeyboardButton("📊 Connection Status (/status)", callback_data="btn_status")],
-            [InlineKeyboardButton("🎵 Dedicate Song (/song)", callback_data="btn_song")],
         ])
 
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
@@ -247,28 +244,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(status_text, parse_mode=ParseMode.MARKDOWN)
 
-async def song_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin command: Sends song dedication to Ramneek on Telegram."""
-    if not is_admin(update.effective_user):
-        return
-
-    ramneek_chat_id = get_saved_chat_id(RAMNEEK_CHAT_FILE)
-    if not ramneek_chat_id:
-        await update.message.reply_text("⚠️ Ramneek hasn't connected to the bot yet.")
-        return
-
-    connect_and_sync_repo()
-    msg = (
-        f"🎶 **Devansh wants you to listen to this song:**\n\n"
-        f"🎵 **[{SONG_TITLE}]({SONG_URL})**\n\n"
-        f"Take good care of yourself 🤍"
-    )
-    try:
-        await context.bot.send_message(chat_id=ramneek_chat_id, text=msg, parse_mode=ParseMode.MARKDOWN)
-        await update.message.reply_text("✅ Song dedication sent to Ramneek!")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Failed to send: {e}")
-
 async def reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Admin command: Sends a custom reply directly to Ramneek."""
     if not is_admin(update.effective_user):
@@ -307,9 +282,6 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         return
     elif data == "btn_status":
         await status_command(update, context)
-        return
-    elif data == "btn_song":
-        await song_command(update, context)
         return
 
     # 1. Approve AI Draft
@@ -390,11 +362,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Check for status
         if lower_text in ["status", "/status", "bot status"]:
             await status_command(update, context)
-            return
-
-        # Check for song
-        if lower_text in ["song", "/song", "send song"]:
-            await song_command(update, context)
             return
 
         # Check if Devansh replied directly to a forwarded message from Ramneek
@@ -501,7 +468,6 @@ async def post_init(application):
         BotCommand("check", "Ping Ramneek to check if she is okay"),
         BotCommand("status", "Check if Ramneek is connected & bot health"),
         BotCommand("reply", "Send a custom reply to Ramneek (<text>)"),
-        BotCommand("song", "Send the song dedication to Ramneek"),
         BotCommand("start", "Open the admin control dashboard"),
     ]
     try:
@@ -529,7 +495,6 @@ def main():
     app.add_handler(CommandHandler("ping", check_command))
     app.add_handler(CommandHandler("nudge", check_command))
     app.add_handler(CommandHandler("status", status_command))
-    app.add_handler(CommandHandler("song", song_command))
     app.add_handler(CommandHandler("reply", reply_command))
     app.add_handler(CommandHandler("say", reply_command))
     app.add_handler(CallbackQueryHandler(handle_callback_query))
