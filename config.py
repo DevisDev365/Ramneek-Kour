@@ -17,6 +17,11 @@ RAMNEEK_TELEGRAM_ID = os.getenv("RAMNEEK_TELEGRAM_ID", "").strip()
 RAMNEEK_TELEGRAM_USERNAME = os.getenv("RAMNEEK_TELEGRAM_USERNAME", "").strip().lstrip("@")
 RAMNEEK_CHAT_FILE = BASE_DIR / "data" / "ramneek_chat.json"
 
+# Admin Configuration (Devansh)
+ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID", "").strip()
+ADMIN_TELEGRAM_USERNAME = os.getenv("ADMIN_TELEGRAM_USERNAME", "").strip().lstrip("@")
+ADMIN_CHAT_FILE = BASE_DIR / "data" / "admin_chat.json"
+
 # Inception Labs API Configuration
 INCEPTION_API_KEY = os.getenv("INCEPTION_API_KEY", "").strip()
 INCEPTION_BASE_URL = os.getenv("INCEPTION_BASE_URL", "https://api.inceptionlabs.ai/v1").strip().rstrip("/")

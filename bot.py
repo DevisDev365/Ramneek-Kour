@@ -16,6 +16,9 @@ from config import (
     RAMNEEK_TELEGRAM_ID,
     RAMNEEK_TELEGRAM_USERNAME,
     RAMNEEK_CHAT_FILE,
+    ADMIN_TELEGRAM_ID,
+    ADMIN_TELEGRAM_USERNAME,
+    ADMIN_CHAT_FILE,
     SYNC_REPO_ON_MESSAGE,
     INCEPTION_MODEL,
     SONG_URL,
@@ -32,204 +35,274 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize memory and LLM client
 memory = ConversationMemory(max_turns=15)
 llm_client = InceptionLLMClient()
 
-def is_authorized(update: Update) -> bool:
-    """
-    Checks if the incoming message is from Ramneek.
-    If no ID or username is configured in .env, allows and logs the sender's details
-    so they can be configured.
-    """
-    user = update.effective_user
+def get_saved_chat_id(filepath) -> int:
+    """Reads a saved chat_id from json file if available."""
+    try:
+        if filepath.exists():
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("chat_id")
+    except Exception as e:
+        logger.warning(f"Error reading {filepath}: {e}")
+    return None
+
+def is_admin(user) -> bool:
+    """Checks if the user is Devansh (Admin)."""
     if not user:
         return False
 
-    # If both filters are empty, allow and log ID for easy configuration
-    if not RAMNEEK_TELEGRAM_ID and not RAMNEEK_TELEGRAM_USERNAME:
-        logger.warning(
-            f"No RAMNEEK_TELEGRAM_ID or RAMNEEK_TELEGRAM_USERNAME configured! "
-            f"Sender: id={user.id}, username=@{user.username}, name={user.full_name}. "
-            f"Add this ID to .env to lock access."
-        )
+    saved_admin_id = get_saved_chat_id(ADMIN_CHAT_FILE)
+    if saved_admin_id and user.id == saved_admin_id:
         return True
 
-    # Check ID match
-    if RAMNEEK_TELEGRAM_ID and str(user.id) == RAMNEEK_TELEGRAM_ID:
+    if ADMIN_TELEGRAM_ID and str(user.id) == ADMIN_TELEGRAM_ID:
         return True
 
-    # Check username match
-    if RAMNEEK_TELEGRAM_USERNAME and user.username:
-        if user.username.lower() == RAMNEEK_TELEGRAM_USERNAME.lower():
+    if ADMIN_TELEGRAM_USERNAME and user.username:
+        if user.username.lower() == ADMIN_TELEGRAM_USERNAME.lower():
             return True
 
-    logger.warning(
-        f"Unauthorized access attempt by id={user.id}, username=@{user.username}, name={user.full_name}"
-    )
+    # If Devansh's username contains 'devansh', recognize him
+    if user.username and "devansh" in user.username.lower():
+        return True
+
     return False
+
+def is_ramneek(user) -> bool:
+    """Checks if user is Ramneek."""
+    if not user:
+        return False
+    if is_admin(user):
+        return False
+    return True
+
+async def notify_admin(context: ContextTypes.DEFAULT_TYPE, message: str):
+    """Sends a notification to Devansh (Admin) on Telegram."""
+    admin_id = get_saved_chat_id(ADMIN_CHAT_FILE) or (int(ADMIN_TELEGRAM_ID) if ADMIN_TELEGRAM_ID.isdigit() else None)
+    if not admin_id:
+        logger.warning("No admin_id available to send notification.")
+        return
+
+    try:
+        await context.bot.send_message(
+            chat_id=admin_id,
+            text=message,
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except Exception as e:
+        logger.error(f"Failed to notify admin: {e}")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles the /start command."""
-    if not is_authorized(update):
+    user = update.effective_user
+    chat_id = update.effective_chat.id
+
+    # 1. ADMIN FLOW (Devansh)
+    if is_admin(user):
+        # Save Devansh's chat details
+        try:
+            ADMIN_CHAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(ADMIN_CHAT_FILE, "w", encoding="utf-8") as f:
+                json.dump({"chat_id": chat_id, "username": user.username, "name": user.full_name}, f, indent=2)
+        except Exception as e:
+            logger.warning(f"Failed saving admin chat: {e}")
+
+        ramneek_id = get_saved_chat_id(RAMNEEK_CHAT_FILE)
+        status_line = f"✅ Connected (`{ramneek_id}`)" if ramneek_id else "⚠️ Not connected yet"
+
+        msg = (
+            f"👑 **Hello Devansh (Admin)**\n\n"
+            f"I am your assistant bot for Ramneek.\n\n"
+            f"• **Ramneek's Telegram Status**: {status_line}\n"
+            f"• **Repository**: `https://github.com/DevisDev365/Ramneek-Kour.git`\n\n"
+            f"**How to tell me to check on her:**\n"
+            f"• Just message me: `check on ramneek`\n"
+            f"• Or use command: `/check`\n"
+            f"• Send custom message: `/say <your message>`\n"
+            f"• Check status: `/status`"
+        )
+        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # 2. RAMNEEK FLOW
+    # Save Ramneek's chat details
+    try:
+        RAMNEEK_CHAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(RAMNEEK_CHAT_FILE, "w", encoding="utf-8") as f:
+            json.dump({
+                "chat_id": chat_id,
+                "user_id": user.id,
+                "username": user.username,
+                "first_name": user.first_name,
+            }, f, indent=2)
+        logger.info(f"Registered Ramneek: chat_id={chat_id}")
+    except Exception as e:
+        logger.warning(f"Failed saving Ramneek's chat details: {e}")
+
+    # Notify Devansh immediately!
+    await notify_admin(
+        context,
+        f"🎉 **Ramneek just opened and connected to the Telegram bot!**\nUser: @{user.username or user.first_name}"
+    )
+
+    # Connect with repo
+    connect_and_sync_repo()
+
+    # Welcome message asking if she's okay
+    welcome_msg = (
+        f"🌸 **Hi Ramneek, I'm Devansh's assistant.**\n\n"
+        f"As you guys are not on talking terms right now... he was genuinely worried if you're okay.\n\n"
+        f"Please tell me, are you doing okay?"
+    )
+    await update.message.reply_text(welcome_msg)
+
+async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command: Tells the bot to go check on Ramneek."""
+    user = update.effective_user
+    if not is_admin(user):
+        await update.message.reply_text("🔒 Access Restricted.")
+        return
+
+    ramneek_chat_id = get_saved_chat_id(RAMNEEK_CHAT_FILE) or (int(RAMNEEK_TELEGRAM_ID) if RAMNEEK_TELEGRAM_ID.isdigit() else None)
+
+    if not ramneek_chat_id:
         await update.message.reply_text(
-            "🔒 Access Restricted: This bot is private and exclusively configured for Ramneek."
+            "⚠️ **Ramneek hasn't opened the bot yet.**\n\n"
+            "Telegram rules require that she taps the link once and clicks **START**:\n"
+            "👉 `https://t.me/devansh_bot_for_ramneek_bot`\n\n"
+            "Or have her open the website: `https://ramneek.devanshkhanna.online`\n"
+            "Once she taps START, I will immediately have her chat ID and can check in on her!"
         )
         return
 
     # Connect with repo first
-    repo_info = connect_and_sync_repo()
-    status_text = "Connected" if repo_info["success"] else "Connection issue"
+    connect_and_sync_repo()
 
-    # Save Ramneek's chat details for future notifications / nudges
-    try:
-        RAMNEEK_CHAT_FILE.parent.mkdir(parents=True, exist_ok=True)
-        chat_data = {
-            "chat_id": update.effective_chat.id,
-            "user_id": update.effective_user.id,
-            "username": update.effective_user.username,
-            "first_name": update.effective_user.first_name,
-        }
-        with open(RAMNEEK_CHAT_FILE, "w", encoding="utf-8") as f:
-            json.dump(chat_data, f, indent=2)
-        logger.info(f"Saved Ramneek's chat details: chat_id={update.effective_chat.id}")
-    except Exception as e:
-        logger.warning(f"Could not save chat details: {e}")
-
-    welcome_msg = (
-        f"🌸 **Hi Ramneek!**\n\n"
-        f"Main Devansh ki assistant hoon. Thank you for connecting here!\n\n"
-        f"Devansh bohot worried tha ki aap theek ho ya nahi... aur ab hum connect ho gaye hain, "
-        f"use tasalli ho gayi ki aap safe aur theek ho.\n\n"
-        f"Main is baare mein ab aage kuch nahi poochungi, that topic ends here.\n\n"
-        f"Bas... Devansh chahta tha ki aap yeh song suno:\n"
-        f"🎵 **[{SONG_TITLE}]({SONG_URL})**\n\n"
-        f"Take good care of yourself 🤍"
+    check_message = (
+        "🌸 **Hi Ramneek, I'm Devansh's assistant.**\n\n"
+        "As you guys are not on talking terms right now... he was genuinely worried if you're okay.\n\n"
+        "Please tell me, are you doing okay?"
     )
-    await update.message.reply_text(welcome_msg, parse_mode=ParseMode.MARKDOWN)
 
-async def repo_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Explicitly connects to and syncs the repository, then outputs status."""
-    if not is_authorized(update):
-        await update.message.reply_text("🔒 Access Restricted.")
+    try:
+        await context.bot.send_message(
+            chat_id=ramneek_chat_id,
+            text=check_message
+        )
+        await update.message.reply_text(
+            f"✅ **Check-in sent to Ramneek!**\n\n"
+            f"I asked her if she is doing okay. I will notify you the moment she replies! 🌸"
+        )
+    except Exception as e:
+        await update.message.reply_text(f"❌ Could not deliver message to Ramneek: {e}")
+
+async def say_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command: Send custom message to Ramneek."""
+    if not is_admin(update.effective_user):
         return
 
-    await update.effective_chat.send_action(ChatAction.TYPING)
-    summary = get_repo_summary()
-    await update.message.reply_text(summary, parse_mode=ParseMode.MARKDOWN)
+    ramneek_chat_id = get_saved_chat_id(RAMNEEK_CHAT_FILE)
+    if not ramneek_chat_id:
+        await update.message.reply_text("⚠️ Ramneek hasn't connected yet.")
+        return
+
+    text = " ".join(context.args)
+    if not text:
+        await update.message.reply_text("Usage: `/say Your message here`", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    connect_and_sync_repo()
+    try:
+        await context.bot.send_message(chat_id=ramneek_chat_id, text=text)
+        await update.message.reply_text("✅ Message delivered to Ramneek.")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Failed: {e}")
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Displays system status."""
-    if not is_authorized(update):
-        await update.message.reply_text("🔒 Access Restricted.")
-        return
-
+    """Displays status of the bot, repo, and connections."""
     repo_info = connect_and_sync_repo()
+    ramneek_id = get_saved_chat_id(RAMNEEK_CHAT_FILE)
+
     status_msg = (
-        f"⚙️ **Ramneek Bot Status**\n\n"
-        f"• **AI Model**: `{INCEPTION_MODEL}`\n"
+        f"⚙️ **System Status**\n\n"
         f"• **Repository**: `https://github.com/DevisDev365/Ramneek-Kour.git`\n"
         f"• **Repo Sync**: {'✅ Connected' if repo_info['success'] else '❌ Disconnected'}\n"
-        f"• **Active History**: {len(memory.history)} messages in memory\n"
+        f"• **Ramneek Connected**: {'✅ Yes (`' + str(ramneek_id) + '`)' if ramneek_id else '❌ Not yet'}\n"
+        f"• **AI Model**: `{INCEPTION_MODEL}`\n"
     )
     await update.message.reply_text(status_msg, parse_mode=ParseMode.MARKDOWN)
 
-async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Clears conversation context."""
-    if not is_authorized(update):
-        await update.message.reply_text("🔒 Access Restricted.")
-        return
-
-    memory.clear()
-    await update.message.reply_text("🧹 Conversation memory has been cleared. Fresh start!")
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Displays help text."""
-    if not is_authorized(update):
-        await update.message.reply_text("🔒 Access Restricted.")
-        return
-
-    help_text = (
-        f"💬 **Ramneek Bot Help**\n\n"
-        f"I am your dedicated conversational bot powered by Inception Labs (`{INCEPTION_MODEL}`).\n\n"
-        f"**Rules & Workflow:**\n"
-        f"1. On every message you send, I first verify connectivity with your GitHub repo.\n"
-        f"2. Only you have access to chat with me.\n"
-        f"3. I remember previous turns in our conversation.\n\n"
-        f"**Commands:**\n"
-        f"• `/start` - Greeting & overview\n"
-        f"• `/repo` - Sync & inspect GitHub repo\n"
-        f"• `/status` - Bot health & parameters\n"
-        f"• `/clear` - Clear conversation memory\n"
-        f"• `/help` - Show this message"
-    )
-    await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles incoming text messages from Ramneek."""
-    if not is_authorized(update):
-        await update.message.reply_text(
-            "🔒 Access Restricted: This bot is private and configured exclusively for Ramneek."
-        )
-        return
-
+    """Handles text messages from both Admin (Devansh) and Ramneek."""
+    user = update.effective_user
     user_text = update.message.text
     if not user_text:
         return
 
-    # Trigger typing action in chat
-    await update.effective_chat.send_action(ChatAction.TYPING)
+    # 1. ADMIN HANDLING (Devansh speaking to bot)
+    if is_admin(user):
+        lower_text = user_text.lower().strip()
+        if "check on ramneek" in lower_text or "check" in lower_text or "nudge" in lower_text:
+            await check_command(update, context)
+            return
 
-    # 1. MANDATORY PROTOCOL: Connect with repository first
-    if SYNC_REPO_ON_MESSAGE:
-        try:
-            logger.info("Executing mandatory pre-conversation repository connection check...")
-            connect_and_sync_repo()
-        except Exception as e:
-            logger.warning(f"Repo sync warning before conversation: {e}")
+        if "status" in lower_text:
+            await status_command(update, context)
+            return
 
-    # 2. Add message to memory and prepare context
-    memory.add_user_message(user_text)
-    messages = memory.get_context_messages()
+        await update.message.reply_text(
+            "👑 Devansh, to check on Ramneek, simply type:\n"
+            "👉 `check on ramneek`\n"
+            "or use `/check`"
+        )
+        return
 
-    # Keep typing indicator alive during LLM generation
-    await update.effective_chat.send_action(ChatAction.TYPING)
+    # 2. RAMNEEK HANDLING
+    # Mandatory repo sync first
+    connect_and_sync_repo()
 
-    # 3. Call Inception Labs API (mercury-3)
-    response_text = await llm_client.generate_response(messages)
+    # Notify Devansh with her exact reply!
+    await notify_admin(
+        context,
+        f"📬 **Devansh, Ramneek just replied:**\n\n"
+        f"> \"{user_text}\""
+    )
 
-    # 4. Save response to memory
-    memory.add_assistant_message(response_text)
+    # Deliver graceful topic closure and the song dedication to Ramneek
+    reply_to_ramneek = (
+        f"🌸 **Devansh ko tasalli ho gayi ki aap safe aur theek ho.**\n\n"
+        f"Ab main is baare mein aage kuch nahi poochungi, that topic ends here.\n\n"
+        f"Devansh wants you to listen to this song...\n"
+        f"🎵 **[{SONG_TITLE}]({SONG_URL})**\n\n"
+        f"Take good care of yourself 🤍"
+    )
 
-    # 5. Send reply back to Ramneek
-    try:
-        await update.message.reply_text(response_text, parse_mode=ParseMode.MARKDOWN)
-    except Exception:
-        # Fallback to plain text if markdown formatting has special characters
-        await update.message.reply_text(response_text)
+    await update.message.reply_text(reply_to_ramneek, parse_mode=ParseMode.MARKDOWN)
 
 def main():
     if not TELEGRAM_BOT_TOKEN:
         print("\n❌ Error: TELEGRAM_BOT_TOKEN is not set.")
-        print("Please copy `.env.example` to `.env` and fill in your tokens.\n")
         return
 
-    print("🚀 Initializing Ramneek Bot...")
-    # Initial repository connection check
+    print("🚀 Initializing Ramneek Bot with Admin Support...")
     repo_status = connect_and_sync_repo()
-    print(f"📦 Repository connection: {'SUCCESS' if repo_status['success'] else 'FAILED'}")
+    print(f"📦 Repository: {'CONNECTED' if repo_status['success'] else 'FAILED'}")
 
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # Register handlers
+    # Handlers
     app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("repo", repo_command))
+    app.add_handler(CommandHandler("admin", start_command))
+    app.add_handler(CommandHandler("check", check_command))
+    app.add_handler(CommandHandler("nudge", check_command))
+    app.add_handler(CommandHandler("say", say_command))
     app.add_handler(CommandHandler("status", status_command))
-    app.add_handler(CommandHandler("clear", clear_command))
-    app.add_handler(CommandHandler("help", help_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("✅ Bot is online and listening for Ramneek! Press Ctrl+C to stop.")
+    print("✅ Bot is online and listening! Press Ctrl+C to stop.")
     app.run_polling()
 
 if __name__ == "__main__":
