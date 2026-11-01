@@ -24,12 +24,20 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Inject Inception API Key from Secrets
+      - name: Inject Secrets into app.js
         shell: bash
         run: |
           if [ -n "${{ secrets.INCEPTION_API_KEY }}" ]; then
             sed -i "s|__INCEPTION_API_KEY__|${{ secrets.INCEPTION_API_KEY }}|g" app.js
             sed -i "s|__INCEPTION_API_KEY__|${{ secrets.INCEPTION_API_KEY }}|g" static/app.js
+          fi
+          if [ -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" ]; then
+            sed -i "s|__TELEGRAM_BOT_TOKEN__|${{ secrets.TELEGRAM_BOT_TOKEN }}|g" app.js
+            sed -i "s|__TELEGRAM_BOT_TOKEN__|${{ secrets.TELEGRAM_BOT_TOKEN }}|g" static/app.js
+          fi
+          if [ -n "${{ secrets.DEVANSH_CHAT_ID }}" ]; then
+            sed -i "s|__DEVANSH_CHAT_ID__|${{ secrets.DEVANSH_CHAT_ID }}|g" app.js
+            sed -i "s|__DEVANSH_CHAT_ID__|${{ secrets.DEVANSH_CHAT_ID }}|g" static/app.js
           fi
 
       - name: Setup GitHub Pages

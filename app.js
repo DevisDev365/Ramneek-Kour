@@ -1,19 +1,23 @@
-// Ramneek Conversational Assistant Frontend - Natural Voice & Active Listening
+// Ramneek Conversational Assistant - Natural Audio & Telegram Relay
 
 let INCEPTION_API_KEY = "__INCEPTION_API_KEY__";
+let TELEGRAM_BOT_TOKEN = "__TELEGRAM_BOT_TOKEN__";
+let DEVANSH_CHAT_ID = "__DEVANSH_CHAT_ID__";
 
 // State
 let isVoiceEnabled = true;
 let isSpeaking = false;
 let isListening = false;
 let conversationHistory = [];
-let chosenVoice = null;
 let recognition = null;
 let telegramUrl = "https://t.me/devansh_bot_for_ramneek_bot";
 let songUrl = "https://music.youtube.com/playlist?list=OLAK5uy_muFG1a76efS0XYoJNVLU7L5YsiDHymCyk";
 let songTitle = "Teri Nazron Ke Sadke";
-let hasShownTelegramPrompt = false;
 let hasDeliveredSong = false;
+
+// Audio objects (Pre-rendered sweet neural voice)
+const greetingAudio = new Audio('greeting.mp3');
+const closingAudio = new Audio('closing.mp3');
 
 // Elements
 const startOverlay = document.getElementById('start-overlay');
@@ -30,105 +34,10 @@ const avatarContainer = document.getElementById('avatar-container');
 const voiceStatusLabel = document.getElementById('voice-status-label');
 const tgContainer = document.getElementById('telegram-prompt-container');
 
-// Natural greeting text (clean English to avoid weird phonetics/accents)
-const SPOKEN_GREETING = 
-  "Hi Ramneek, I'm Devansh's assistant. As you guys are not on talking terms right now... " +
-  "he was genuinely worried if you're okay. Please tell me, are you doing okay?";
-
 const DISPLAY_GREETING = 
   "Hi Ramneek, I'm Devansh's assistant 🌸\n\n" +
-  "As you guys are not on talking terms right now, Devansh was really worried about how you are doing. " +
+  "As you guys are not on talking terms right now, Devansh was really worried about how you are doing.\n\n" +
   "Please tell me, are you doing okay?";
-
-// Voice Selection: Prioritize "Adore" or natural soft female English voices
-function initVoices() {
-  if (!('speechSynthesis' in window)) return;
-
-  const voices = window.speechSynthesis.getVoices();
-  if (!voices || voices.length === 0) return;
-
-  const nameMatch = (v, query) => v.name.toLowerCase().includes(query.toLowerCase());
-
-  // 1. Look for user's requested "Adore" voice
-  let voice = voices.find(v => nameMatch(v, 'adore'));
-
-  // 2. High-quality natural English female voices
-  if (!voice) {
-    voice = voices.find(v => 
-      (v.lang.startsWith('en') && (
-        nameMatch(v, 'samantha') || 
-        nameMatch(v, 'victoria') || 
-        nameMatch(v, 'karen') || 
-        nameMatch(v, 'ava') || 
-        nameMatch(v, 'serena') || 
-        nameMatch(v, 'aria') || 
-        nameMatch(v, 'jenny') || 
-        nameMatch(v, 'google us english') ||
-        nameMatch(v, 'natural')
-      ))
-    );
-  }
-
-  // 3. Fallback to any en-US or en female voice
-  if (!voice) {
-    voice = voices.find(v => v.lang.startsWith('en') && nameMatch(v, 'female')) ||
-            voices.find(v => v.lang === 'en-US') ||
-            voices[0];
-  }
-
-  chosenVoice = voice;
-  console.log("Selected TTS Voice:", chosenVoice ? `${chosenVoice.name} (${chosenVoice.lang})` : "Default");
-}
-
-if ('speechSynthesis' in window) {
-  window.speechSynthesis.onvoiceschanged = initVoices;
-  initVoices();
-}
-
-// Speak natural audio
-function speakText(text, onComplete = null) {
-  if (!isVoiceEnabled || !('speechSynthesis' in window)) {
-    if (onComplete) onComplete();
-    return;
-  }
-
-  // Stop listening while speaking to avoid mic feedback
-  stopListening();
-  window.speechSynthesis.cancel();
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  if (chosenVoice) {
-    utterance.voice = chosenVoice;
-  }
-  utterance.pitch = 1.0; // Standard natural human pitch (no squeakiness)
-  utterance.rate = 0.95; // Calm, conversational pace
-
-  utterance.onstart = () => {
-    isSpeaking = true;
-    voiceBanner.classList.add('speaking');
-    voiceBanner.classList.remove('listening');
-    avatarContainer.classList.add('speaking');
-    voiceStatusLabel.textContent = "Speaking softly...";
-  };
-
-  utterance.onend = () => {
-    isSpeaking = false;
-    voiceBanner.classList.remove('speaking');
-    avatarContainer.classList.remove('speaking');
-    voiceStatusLabel.textContent = "Listening...";
-    if (onComplete) onComplete();
-  };
-
-  utterance.onerror = (e) => {
-    console.warn("Speech error:", e);
-    isSpeaking = false;
-    voiceBanner.classList.remove('speaking');
-    avatarContainer.classList.remove('speaking');
-    if (onComplete) onComplete();
-  };
-
-  window.speechSynthesis.speak(utterance);
-}
 
 // Append chat message bubble
 function appendMessage(role, text, extraHtml = null) {
@@ -158,11 +67,8 @@ function appendMessage(role, text, extraHtml = null) {
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
-// Single prompt: Connect on Telegram
+// Render the ONE single pre-built prompt: Connect on Telegram
 function renderTelegramPrompt() {
-  if (hasShownTelegramPrompt) return;
-  hasShownTelegramPrompt = true;
-
   tgContainer.innerHTML = `
     <div class="telegram-prompt-card">
       <div class="tg-prompt-info">
@@ -190,8 +96,10 @@ function deliverSongDedication() {
   if (hasDeliveredSong) return;
   hasDeliveredSong = true;
 
-  const closingText = "Devansh ko tasalli ho gayi ki aap safe ho. Ab aage koi questions nahi... Devansh wants you to listen to this song.";
-  const spokenClosing = "Devansh is relieved knowing that you are safe. Devansh wants you to listen to this song.";
+  const closingText = 
+    "Devansh ko tasalli ho gayi ki aap safe aur theek ho.\n" +
+    "Ab aage koi questions nahi, that topic ends here.\n\n" +
+    "Devansh wants you to listen to this song...";
 
   const musicHtml = `
     <div class="music-card">
@@ -207,27 +115,62 @@ function deliverSongDedication() {
   `;
 
   appendMessage('bot', closingText, musicHtml);
-  speakText(spokenClosing);
+
+  // Play closing audio if voice enabled
+  if (isVoiceEnabled) {
+    closingAudio.play().catch(e => console.log("Audio play error:", e));
+  }
 
   tgContainer.innerHTML = `
-    <div style="text-align: center; padding: 10px; font-size: 13px; color: #736b79; font-style: italic;">
+    <div style="text-align: center; padding: 12px; font-size: 13.5px; color: #736b79; font-style: italic;">
       🤍 Take good care of yourself, Ramneek.
     </div>
   `;
+
+  // Relay this event to Devansh
+  relayToDevanshTelegram("✨ Ramneek clicked 'Connect on Telegram' and was shown the song dedication!");
+}
+
+// Forward Ramneek's message to Devansh's Telegram in real time
+async function relayToDevanshTelegram(ramneekMessage) {
+  // If backend is running
+  try {
+    fetch('/api/relay-telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: ramneekMessage })
+    }).catch(() => {});
+  } catch (e) {}
+
+  // Direct Telegram Bot API call from browser
+  if (TELEGRAM_BOT_TOKEN && !TELEGRAM_BOT_TOKEN.startsWith("__") && DEVANSH_CHAT_ID && !DEVANSH_CHAT_ID.startsWith("__")) {
+    try {
+      const text = `🌸 **Website Message from Ramneek:**\n\n"${ramneekMessage}"`;
+      const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: DEVANSH_CHAT_ID,
+          text: text,
+          parse_mode: 'Markdown'
+        })
+      });
+    } catch (err) {
+      console.warn("Direct Telegram relay failed:", err);
+    }
+  }
 }
 
 // Speech Recognition (Microphone Auto-Listen)
 function initSpeechRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    console.warn("Speech recognition not supported in this browser.");
-    return;
-  }
+  if (!SpeechRecognition) return;
 
   recognition = new SpeechRecognition();
   recognition.continuous = false;
   recognition.interimResults = false;
-  recognition.lang = 'en-IN'; // Recognizes conversational English and Indian accents
+  recognition.lang = 'en-IN';
 
   recognition.onstart = () => {
     isListening = true;
@@ -238,14 +181,12 @@ function initSpeechRecognition() {
 
   recognition.onresult = (event) => {
     const transcript = event.results[0][0].transcript;
-    console.log("Captured speech:", transcript);
     if (transcript && transcript.trim()) {
       sendMessage(transcript.trim());
     }
   };
 
-  recognition.onerror = (e) => {
-    console.warn("Recognition error:", e.error);
+  recognition.onerror = () => {
     isListening = false;
     micBtn.classList.remove('active-listening');
     voiceBanner.classList.remove('listening');
@@ -266,9 +207,7 @@ function startListening() {
   if (!recognition || isSpeaking) return;
   try {
     recognition.start();
-  } catch (err) {
-    // Already started or busy
-  }
+  } catch (err) {}
 }
 
 function stopListening() {
@@ -278,7 +217,7 @@ function stopListening() {
   } catch (err) {}
 }
 
-// Send message to AI
+// Send user message
 async function sendMessage(textToSend) {
   const text = (textToSend || messageInput.value).trim();
   if (!text) return;
@@ -292,10 +231,10 @@ async function sendMessage(textToSend) {
   conversationHistory.push({ role: 'user', content: text });
   voiceStatusLabel.textContent = "Thinking...";
 
-  // Immediately display the one single Telegram prompt!
-  renderTelegramPrompt();
+  // Immediately relay Ramneek's message to Devansh!
+  relayToDevanshTelegram(text);
 
-  let reply = "I am so glad to know that you are safe and okay. Devansh was truly worried about you.";
+  let reply = "I'm so glad to hear from you, Ramneek. Devansh was truly worried, but now he is relieved knowing you are okay.";
 
   // Mode 1: Backend API
   try {
@@ -323,7 +262,7 @@ async function sendMessage(textToSend) {
             messages: [
               {
                 role: "system",
-                content: "You are Devansh's gentle assistant checking on Ramneek. Context: they are not on talking terms. Devansh was worried if she's okay. Reply in 1-2 empathetic, warm, natural sentences in English."
+                content: "You are Devansh's gentle assistant checking on Ramneek. Context: they are not on talking terms. Devansh was worried if she's okay. Reply in 1-2 empathetic, warm sentences in English."
               },
               ...conversationHistory
             ]
@@ -340,43 +279,50 @@ async function sendMessage(textToSend) {
   appendMessage('bot', reply);
   conversationHistory.push({ role: 'assistant', content: reply });
 
-  // Speak AI reply aloud, and when finished speaking, start listening again if she wants to say more
-  speakText(reply, () => {
-    if (!hasDeliveredSong) {
-      setTimeout(() => {
-        startListening();
-      }, 500);
-    }
-  });
-
   sendBtn.disabled = false;
 }
+
+// Setup audio listeners
+greetingAudio.addEventListener('play', () => {
+  isSpeaking = true;
+  voiceBanner.classList.add('speaking');
+  avatarContainer.classList.add('speaking');
+  voiceStatusLabel.textContent = "Speaking softly...";
+});
+
+greetingAudio.addEventListener('ended', () => {
+  isSpeaking = false;
+  voiceBanner.classList.remove('speaking');
+  avatarContainer.classList.remove('speaking');
+  voiceStatusLabel.textContent = "Listening to you...";
+  // Immediately start listening when greeting finishes!
+  setTimeout(() => {
+    startListening();
+  }, 400);
+});
 
 // Start overlay tap
 startBtn.addEventListener('click', () => {
   startOverlay.classList.add('hidden');
-  initVoices();
   initSpeechRecognition();
 
-  setTimeout(() => {
-    appendMessage('bot', DISPLAY_GREETING);
-    conversationHistory.push({ role: 'assistant', content: DISPLAY_GREETING });
+  // 1. Show message bubble
+  appendMessage('bot', DISPLAY_GREETING);
+  conversationHistory.push({ role: 'assistant', content: DISPLAY_GREETING });
 
-    // Speak initial message, then IMMEDIATELY start listening to Ramneek!
-    speakText(SPOKEN_GREETING, () => {
-      console.log("Greeting finished speaking, now actively listening to Ramneek...");
-      setTimeout(() => {
-        startListening();
-      }, 300);
+  // 2. Play high-quality neural female voice
+  if (isVoiceEnabled) {
+    greetingAudio.play().catch(e => {
+      console.warn("Audio autoplay blocked, user interaction required:", e);
     });
-  }, 400);
+  }
+
+  // 3. Render the one single Telegram prompt from the start!
+  renderTelegramPrompt();
 });
 
-// Mic button toggle
+// Mic toggle
 micBtn.addEventListener('click', () => {
-  if (isSpeaking) {
-    window.speechSynthesis.cancel();
-  }
   if (isListening) {
     stopListening();
   } else {
@@ -384,18 +330,19 @@ micBtn.addEventListener('click', () => {
   }
 });
 
-// Voice mute toggle
+// Voice toggle
 voiceToggleBtn.addEventListener('click', () => {
   isVoiceEnabled = !isVoiceEnabled;
   voiceIcon.textContent = isVoiceEnabled ? '🔊' : '🔇';
-  if (!isVoiceEnabled && 'speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
+  if (!isVoiceEnabled) {
+    greetingAudio.pause();
+    closingAudio.pause();
     voiceBanner.classList.remove('speaking');
     avatarContainer.classList.remove('speaking');
   }
 });
 
-// Text input submit
+// Text send
 sendBtn.addEventListener('click', () => sendMessage());
 
 messageInput.addEventListener('keydown', (e) => {
