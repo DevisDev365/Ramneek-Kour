@@ -152,11 +152,17 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.warning(f"Failed saving Ramneek's chat details: {e}")
 
-    # Notify Devansh immediately!
+    # Notify Devansh immediately with her actual Chat ID!
+    username_str = f"@{user.username}" if user.username else "No username set"
+    full_name_str = user.full_name or user.first_name or "Ramneek"
+
     await notify_admin(
         context,
-        f"🎉 **Ramneek just opened and connected to the Telegram bot!**\n"
-        f"User: @{user.username or user.first_name} (Chat ID: `{chat_id}`)"
+        f"🎉 **Ramneek just opened and connected to the Telegram bot!**\n\n"
+        f"• **Name**: {full_name_str}\n"
+        f"• **User**: {username_str}\n"
+        f"• **Chat ID**: `{chat_id}`\n\n"
+        f"✅ Her Chat ID has been captured! You can now use `/check` or `/reply` to message her anytime."
     )
 
     connect_and_sync_repo()
