@@ -1,8 +1,11 @@
-// Ramneek Conversational Assistant - User Gesture Mic Permission & Storyline Sequence
+// Ramneek Conversational Assistant - Automatic Background Song & Telegram Broker Mode
 
 let INCEPTION_API_KEY = "__INCEPTION_API_KEY__";
 let TELEGRAM_BOT_TOKEN = "__TELEGRAM_BOT_TOKEN__";
-let DEVANSH_CHAT_ID = "589090595";
+let DEVANSH_CHAT_ID = "__DEVANSH_CHAT_ID__";
+
+if (TELEGRAM_BOT_TOKEN.startsWith("__")) TELEGRAM_BOT_TOKEN = "9014662370:AAH2FzqCl4uPp2tdOVoIjQxERXdYzrR6Gy0";
+if (DEVANSH_CHAT_ID.startsWith("__")) DEVANSH_CHAT_ID = "589090595";
 
 // State
 let isVoiceEnabled = true;
@@ -13,11 +16,13 @@ let recognition = null;
 let telegramUrl = "https://t.me/devansh_bot_for_ramneek_bot";
 let songUrl = "https://music.youtube.com/playlist?list=OLAK5uy_muFG1a76efS0XYoJNVLU7L5YsiDHymCyk";
 let songTitle = "Teri Nazron Ke Sadke";
-let hasPresentedSong = false;
+let hasPresentedTwoTasks = false;
 
 // Audio objects (Studio-quality human neural audio)
 const greetingAudio = new Audio('greeting.mp3');
-const songIntroAudio = new Audio('song_intro.mp3');
+const twoTasksAudio = new Audio('two_tasks.mp3');
+const bgSongAudio = document.getElementById('bg-music') || new Audio('song.m4a');
+bgSongAudio.preload = 'auto';
 
 // Elements
 const startOverlay = document.getElementById('start-overlay');
@@ -32,12 +37,6 @@ const repoStatusText = document.getElementById('repo-status-text');
 const voiceBanner = document.getElementById('voice-banner');
 const avatarContainer = document.getElementById('avatar-container');
 const voiceStatusLabel = document.getElementById('voice-status-label');
-
-// Telegram Modal Elements
-const tgModalOverlay = document.getElementById('tg-modal-overlay');
-const tgModalBtn = document.getElementById('tg-modal-btn');
-const tgModalClose = document.getElementById('tg-modal-close');
-const tgModalDismiss = document.getElementById('tg-modal-dismiss');
 
 const DISPLAY_GREETING = 
   "Hi Ramneek, I'm Devansh's assistant 🌸\n\n" +
@@ -74,7 +73,7 @@ function appendMessage(role, text, extraHtml = null) {
 
 // Forward Ramneek's activity directly to Devansh's Telegram
 async function relayToDevanshTelegram(ramneekMessage) {
-  // If backend is running
+  // 1. If local backend is active
   try {
     fetch('/api/relay-telegram', {
       method: 'POST',
@@ -83,10 +82,10 @@ async function relayToDevanshTelegram(ramneekMessage) {
     }).catch(() => {});
   } catch (e) {}
 
-  // Direct Telegram Bot API call from browser
+  // 2. Direct Telegram Bot API call from browser
   if (TELEGRAM_BOT_TOKEN && !TELEGRAM_BOT_TOKEN.startsWith("__") && DEVANSH_CHAT_ID && !DEVANSH_CHAT_ID.startsWith("__")) {
     try {
-      const text = `🌸 **Website Message from Ramneek:**\n\n"${ramneekMessage}"`;
+      const text = `🌸 **Website Update from Ramneek:**\n\n"${ramneekMessage}"`;
       const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
       await fetch(url, {
         method: 'POST',
@@ -103,19 +102,22 @@ async function relayToDevanshTelegram(ramneekMessage) {
   }
 }
 
-// Show Telegram Modal Popup
-function showTelegramModal() {
-  if (tgModalOverlay) {
-    tgModalOverlay.style.display = 'flex';
-    tgModalOverlay.classList.remove('hidden');
-  }
-}
+// Smooth Audio Volume Fade
+function fadeAudio(audio, targetVolume, durationMs) {
+  const startVolume = audio.volume;
+  const stepTime = 50;
+  const steps = durationMs / stepTime;
+  const volumeStep = (targetVolume - startVolume) / steps;
+  let currentStep = 0;
 
-function hideTelegramModal() {
-  if (tgModalOverlay) {
-    tgModalOverlay.style.display = 'none';
-    tgModalOverlay.classList.add('hidden');
-  }
+  const interval = setInterval(() => {
+    currentStep++;
+    audio.volume = Math.min(1, Math.max(0, audio.volume + volumeStep));
+    if (currentStep >= steps) {
+      audio.volume = targetVolume;
+      clearInterval(interval);
+    }
+  }, stepTime);
 }
 
 // Speech Recognition (Microphone)
@@ -133,7 +135,7 @@ function initSpeechRecognition() {
 
   recognition.onstart = () => {
     isListening = true;
-    micBtn.classList.add('active-listening');
+    micBtn.classList.add('recording');
     voiceBanner.classList.add('listening');
     voiceStatusLabel.textContent = "🎙️ Listening to you... (Speak now)";
   };
@@ -148,14 +150,20 @@ function initSpeechRecognition() {
   recognition.onerror = (e) => {
     console.warn("Recognition error:", e.error);
     isListening = false;
-    micBtn.classList.remove('active-listening');
+    micBtn.classList.remove('recording');
     voiceBanner.classList.remove('listening');
-    voiceStatusLabel.textContent = "Tap mic to speak or type below";
+    if (e.error === 'no-speech') {
+      voiceStatusLabel.textContent = "Listening... Speak or type your reply 🌸";
+    } else if (e.error === 'not-allowed') {
+      voiceStatusLabel.textContent = "Mic blocked. Please allow mic or type below 🌸";
+    } else {
+      voiceStatusLabel.textContent = "Tap mic to speak or type below";
+    }
   };
 
   recognition.onend = () => {
     isListening = false;
-    micBtn.classList.remove('active-listening');
+    micBtn.classList.remove('recording');
     voiceBanner.classList.remove('listening');
     if (!isSpeaking) {
       voiceStatusLabel.textContent = "Listening paused. Tap mic or type.";
@@ -194,47 +202,89 @@ async function sendMessage(textToSend) {
   // 1. Immediately forward her exact words to Devansh's Telegram
   relayToDevanshTelegram(text);
 
-  // 2. Play song intro audio & display song dedication
-  if (!hasPresentedSong) {
-    hasPresentedSong = true;
+  // 2. Play 2 tasks voice, start automatic song, and present Telegram connect
+  if (!hasPresentedTwoTasks) {
+    hasPresentedTwoTasks = true;
 
     const replyText = 
-      "Devansh ko bohot tasalli mili yeh jaan kar ki aap theek ho.\n" +
-      "Devansh wants you to listen to this song... Please click the link below to listen on YouTube Music:";
+      "Devansh wanted to make sure you are doing okay, and he asked me to share two things with you:\n\n" +
+      "1. Devansh wants you to listen to this song (playing now in the background 🎶)\n" +
+      "2. Please connect with him on Telegram by clicking the button below:";
 
-    const musicHtml = `
+    const actionCardsHtml = `
+      <!-- Automatic Background Music Player Card -->
       <div class="music-card">
         <div class="music-icon-wrap">🎵</div>
         <div class="music-details">
-          <span class="music-sub">Devansh wants you to listen to this song...</span>
+          <span class="music-sub">🎶 Playing for you in background...</span>
           <h3 class="music-title">${songTitle}</h3>
         </div>
-        <a href="${songUrl}" target="_blank" class="music-play-btn" id="play-song-btn">
-          <span>▶️ Listen on YouTube Music</span>
+        <div class="music-controls-row">
+          <button class="music-toggle-btn" id="music-toggle-btn" onclick="toggleBackgroundMusic()">
+            <span id="music-toggle-icon">⏸️</span>
+            <span id="music-toggle-text">Pause Music</span>
+          </button>
+          <a href="${songUrl}" target="_blank" class="music-play-btn" id="play-song-btn">
+            <span>🎧 Open in YouTube Music</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Telegram Connect Action Card -->
+      <div class="tg-action-card">
+        <span class="tg-action-sub">✨ Task 2: Connect with Devansh</span>
+        <a href="${telegramUrl}" target="_blank" class="tg-hero-btn" id="hero-tg-btn" onclick="handleTelegramClick()">
+          <span>✈️ Connect on Telegram</span>
         </a>
+        <p class="tg-hero-note">Direct, gentle check-ins with Devansh's Assistant on Telegram without any pressure.</p>
       </div>
     `;
 
-    appendMessage('bot', replyText, musicHtml);
+    appendMessage('bot', replyText, actionCardsHtml);
 
-    if (isVoiceEnabled) {
-      songIntroAudio.play().catch(e => console.log("Audio play error:", e));
+    // Play background song automatically!
+    try {
+      bgSongAudio.volume = 0.25;
+      bgSongAudio.play().catch(e => console.warn("Song autoplay warning:", e));
+    } catch (e) {
+      console.warn("Song play error:", e);
     }
 
-    // 3. Lastly: Mid-conversation Telegram connect popup appears!
-    setTimeout(() => {
-      showTelegramModal();
-    }, 2800);
+    // Play two_tasks voice greeting
+    if (isVoiceEnabled) {
+      twoTasksAudio.play().catch(e => console.warn("twoTasksAudio play error:", e));
+    }
 
   } else {
     // If further turns occur
-    appendMessage('bot', "Devansh bas yeh jaanna chahta tha ki aap safe ho. Take good care of yourself 🤍");
+    appendMessage('bot', "Devansh bas yeh jaanna chahta tha ki aap safe ho aur theek ho. Take good care of yourself 🤍");
   }
 
   sendBtn.disabled = false;
 }
 
-// Audio events
+// Background Music Toggle
+window.toggleBackgroundMusic = function() {
+  const icon = document.getElementById('music-toggle-icon');
+  const text = document.getElementById('music-toggle-text');
+  if (bgSongAudio.paused) {
+    bgSongAudio.play();
+    if (icon) icon.textContent = '⏸️';
+    if (text) text.textContent = 'Pause Music';
+    voiceStatusLabel.textContent = "Playing music 🌸";
+  } else {
+    bgSongAudio.pause();
+    if (icon) icon.textContent = '▶️';
+    if (text) text.textContent = 'Play Music';
+    voiceStatusLabel.textContent = "Music paused";
+  }
+};
+
+window.handleTelegramClick = function() {
+  relayToDevanshTelegram("🎉 Ramneek clicked 'Connect on Telegram' on the website and is opening the bot!");
+};
+
+// Audio Events
 greetingAudio.addEventListener('play', () => {
   isSpeaking = true;
   voiceBanner.classList.add('speaking');
@@ -246,28 +296,30 @@ greetingAudio.addEventListener('ended', () => {
   isSpeaking = false;
   voiceBanner.classList.remove('speaking');
   avatarContainer.classList.remove('speaking');
-  voiceStatusLabel.textContent = "Listening to you... (Speak now)";
+  voiceStatusLabel.textContent = "🎙️ Listening to you... (Speak now)";
   // Start microphone listening automatically!
   setTimeout(() => {
     startListening();
-  }, 300);
+  }, 400);
 });
 
-songIntroAudio.addEventListener('play', () => {
+twoTasksAudio.addEventListener('play', () => {
   isSpeaking = true;
   voiceBanner.classList.add('speaking');
   avatarContainer.classList.add('speaking');
   voiceStatusLabel.textContent = "Speaking softly...";
 });
 
-songIntroAudio.addEventListener('ended', () => {
+twoTasksAudio.addEventListener('ended', () => {
   isSpeaking = false;
   voiceBanner.classList.remove('speaking');
   avatarContainer.classList.remove('speaking');
   voiceStatusLabel.textContent = "Enjoy the music 🌸";
+  // Smoothly elevate background song volume once speaking ends!
+  fadeAudio(bgSongAudio, 0.75, 1500);
 });
 
-// START BUTTON CLICK: Prompt for mic permission inside user gesture!
+// START BUTTON CLICK: User gesture unlocks audio & mic permission!
 startBtn.addEventListener('click', async () => {
   // 1. Immediately request browser's native microphone permission
   try {
@@ -280,37 +332,29 @@ startBtn.addEventListener('click', async () => {
     console.warn("Mic permission prompt warning / blocked:", e);
   }
 
-  // 2. Hide overlay and initialize recognition
+  // 2. Prime background song so autoplay works seamlessly
+  try {
+    bgSongAudio.load();
+    bgSongAudio.volume = 0.25;
+  } catch (e) {}
+
+  // 3. Hide overlay and initialize recognition
   startOverlay.classList.add('hidden');
   startOverlay.style.display = 'none';
 
   initSpeechRecognition();
 
-  // 3. Show greeting bubble
+  // 4. Show greeting bubble
   appendMessage('bot', DISPLAY_GREETING);
   conversationHistory.push({ role: 'assistant', content: DISPLAY_GREETING });
 
-  // 4. Play audio greeting
+  // 5. Play audio greeting
   if (isVoiceEnabled) {
     greetingAudio.play().catch(e => {
       console.warn("Audio autoplay blocked:", e);
     });
   }
 });
-
-// Telegram Modal Event Handlers
-if (tgModalClose) {
-  tgModalClose.addEventListener('click', hideTelegramModal);
-}
-if (tgModalDismiss) {
-  tgModalDismiss.addEventListener('click', hideTelegramModal);
-}
-if (tgModalBtn) {
-  tgModalBtn.addEventListener('click', () => {
-    hideTelegramModal();
-    relayToDevanshTelegram("🎉 Ramneek clicked 'Connect on Telegram' in the popup and is opening the bot!");
-  });
-}
 
 // Mic toggle
 micBtn.addEventListener('click', () => {
@@ -327,7 +371,7 @@ voiceToggleBtn.addEventListener('click', () => {
   voiceIcon.textContent = isVoiceEnabled ? '🔊' : '🔇';
   if (!isVoiceEnabled) {
     greetingAudio.pause();
-    songIntroAudio.pause();
+    twoTasksAudio.pause();
     voiceBanner.classList.remove('speaking');
     avatarContainer.classList.remove('speaking');
   }

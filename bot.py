@@ -1,12 +1,15 @@
 import logging
 import asyncio
 import json
-from telegram import Update
+import uuid
+from typing import Dict, Any
+from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     ContextTypes,
     filters,
 )
@@ -35,8 +38,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-memory = ConversationMemory(max_turns=15)
+memory = ConversationMemory(max_turns=20)
 llm_client = InceptionLLMClient()
+
+# Stores pending drafts awaiting Devansh's approval: {draft_id: {"chat_id": int, "draft": str, "question": str}}
+pending_drafts: Dict[str, Dict[str, Any]] = {}
+# Stores pending direct messages from Devansh: {msg_id: str}
+pending_direct_messages: Dict[str, str] = {}
 
 def get_saved_chat_id(filepath) -> int:
     """Reads a saved chat_id from json file if available."""
@@ -58,14 +66,13 @@ def is_admin(user) -> bool:
     if saved_admin_id and user.id == saved_admin_id:
         return True
 
-    if ADMIN_TELEGRAM_ID and str(user.id) == ADMIN_TELEGRAM_ID:
+    if ADMIN_TELEGRAM_ID and str(user.id) == str(ADMIN_TELEGRAM_ID):
         return True
 
     if ADMIN_TELEGRAM_USERNAME and user.username:
         if user.username.lower() == ADMIN_TELEGRAM_USERNAME.lower():
             return True
 
-    # If Devansh's username contains 'devansh', recognize him
     if user.username and "devansh" in user.username.lower():
         return True
 
@@ -75,25 +82,25 @@ def is_ramneek(user) -> bool:
     """Checks if user is Ramneek."""
     if not user:
         return False
-    if is_admin(user):
-        return False
-    return True
+    return not is_admin(user)
 
-async def notify_admin(context: ContextTypes.DEFAULT_TYPE, message: str):
+async def notify_admin(context: ContextTypes.DEFAULT_TYPE, message: str, reply_markup=None):
     """Sends a notification to Devansh (Admin) on Telegram."""
-    admin_id = get_saved_chat_id(ADMIN_CHAT_FILE) or (int(ADMIN_TELEGRAM_ID) if ADMIN_TELEGRAM_ID.isdigit() else None)
+    admin_id = get_saved_chat_id(ADMIN_CHAT_FILE) or (int(ADMIN_TELEGRAM_ID) if str(ADMIN_TELEGRAM_ID).isdigit() else None)
     if not admin_id:
         logger.warning("No admin_id available to send notification.")
-        return
+        return None
 
     try:
-        await context.bot.send_message(
+        return await context.bot.send_message(
             chat_id=admin_id,
             text=message,
-            parse_mode=ParseMode.MARKDOWN
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=reply_markup
         )
     except Exception as e:
         logger.error(f"Failed to notify admin: {e}")
+        return None
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles the /start command."""
@@ -102,7 +109,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 1. ADMIN FLOW (Devansh)
     if is_admin(user):
-        # Save Devansh's chat details
         try:
             ADMIN_CHAT_FILE.parent.mkdir(parents=True, exist_ok=True)
             with open(ADMIN_CHAT_FILE, "w", encoding="utf-8") as f:
@@ -111,24 +117,23 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.warning(f"Failed saving admin chat: {e}")
 
         ramneek_id = get_saved_chat_id(RAMNEEK_CHAT_FILE)
-        status_line = f"✅ Connected (`{ramneek_id}`)" if ramneek_id else "⚠️ Not connected yet"
+        status_line = f"✅ Connected (`{ramneek_id}`)" if ramneek_id else "⚠️ Waiting for Ramneek to tap link"
 
         msg = (
             f"👑 **Hello Devansh (Admin)**\n\n"
-            f"I am your assistant bot for Ramneek.\n\n"
-            f"• **Ramneek's Telegram Status**: {status_line}\n"
+            f"I am your personal AI Broker & Assistant for Ramneek.\n\n"
+            f"• **Ramneek's Telegram**: {status_line}\n"
             f"• **Repository**: `https://github.com/DevisDev365/Ramneek-Kour.git`\n\n"
-            f"**How to tell me to check on her:**\n"
-            f"• Just message me: `check on ramneek`\n"
-            f"• Or use command: `/check`\n"
-            f"• Send custom message: `/say <your message>`\n"
-            f"• Check status: `/status`"
+            f"**How the Broker Mode works:**\n"
+            f"1. Type `/check` to send Ramneek the check-in ping.\n"
+            f"2. Whenever she replies or asks a question, I will forward it to you instantly with an AI suggested response.\n"
+            f"3. You can tap **Approve**, swipe-right to reply, or type any message and I'll deliver it to her!\n"
+            f"4. Send custom message anytime: `/reply <your message>`"
         )
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
         return
 
     # 2. RAMNEEK FLOW
-    # Save Ramneek's chat details
     try:
         RAMNEEK_CHAT_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(RAMNEEK_CHAT_FILE, "w", encoding="utf-8") as f:
@@ -145,46 +150,42 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Notify Devansh immediately!
     await notify_admin(
         context,
-        f"🎉 **Ramneek just opened and connected to the Telegram bot!**\nUser: @{user.username or user.first_name}"
+        f"🎉 **Ramneek just opened and connected to the Telegram bot!**\n"
+        f"User: @{user.username or user.first_name} (`{chat_id}`)"
     )
 
-    # Connect with repo
     connect_and_sync_repo()
 
-    # Welcome message asking if she's okay
     welcome_msg = (
         f"🌸 **Hi Ramneek, I'm Devansh's assistant.**\n\n"
-        f"As you guys are not on talking terms right now... he was genuinely worried if you're okay.\n\n"
+        f"As you guys are not on talking terms right now... Devansh was genuinely worried if you're okay.\n\n"
         f"Please tell me, are you doing okay?"
     )
     await update.message.reply_text(welcome_msg)
 
 async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin command: Tells the bot to go check on Ramneek."""
+    """Admin command: Sends the check-in ping to Ramneek on Telegram."""
     user = update.effective_user
     if not is_admin(user):
         await update.message.reply_text("🔒 Access Restricted.")
         return
 
-    ramneek_chat_id = get_saved_chat_id(RAMNEEK_CHAT_FILE) or (int(RAMNEEK_TELEGRAM_ID) if RAMNEEK_TELEGRAM_ID.isdigit() else None)
+    ramneek_chat_id = get_saved_chat_id(RAMNEEK_CHAT_FILE) or (int(RAMNEEK_TELEGRAM_ID) if str(RAMNEEK_TELEGRAM_ID).isdigit() else None)
 
     if not ramneek_chat_id:
         await update.message.reply_text(
             "⚠️ **Ramneek hasn't opened the bot yet.**\n\n"
-            "Telegram rules require that she taps the link once and clicks **START**:\n"
+            "As soon as she taps the **Connect on Telegram** button on the website and clicks **START**:\n"
             "👉 `https://t.me/devansh_bot_for_ramneek_bot`\n\n"
-            "Or have her open the website: `https://ramneek.devanshkhanna.online`\n"
-            "Once she taps START, I will immediately have her chat ID and can check in on her!"
+            "I will immediately have her chat ID and deliver your check-in ping!"
         )
         return
 
-    # Connect with repo first
     connect_and_sync_repo()
 
     check_message = (
         "🌸 **Hi Ramneek, I'm Devansh's assistant.**\n\n"
-        "As you guys are not on talking terms right now... he was genuinely worried if you're okay.\n\n"
-        "Please tell me, are you doing okay?"
+        "Devansh wanted to check in and see if you are doing okay today."
     )
 
     try:
@@ -194,13 +195,13 @@ async def check_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.message.reply_text(
             f"✅ **Check-in sent to Ramneek!**\n\n"
-            f"I asked her if she is doing okay. I will notify you the moment she replies! 🌸"
+            f"I asked her if she is doing okay. When she responds, I will consult you with an AI draft before replying! 🌸"
         )
     except Exception as e:
         await update.message.reply_text(f"❌ Could not deliver message to Ramneek: {e}")
 
-async def say_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin command: Send custom message to Ramneek."""
+async def reply_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command: Sends a custom reply directly to Ramneek."""
     if not is_admin(update.effective_user):
         return
 
@@ -211,29 +212,77 @@ async def say_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = " ".join(context.args)
     if not text:
-        await update.message.reply_text("Usage: `/say Your message here`", parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text("Usage: `/reply Your message here`", parse_mode=ParseMode.MARKDOWN)
         return
 
     connect_and_sync_repo()
     try:
         await context.bot.send_message(chat_id=ramneek_chat_id, text=text)
-        await update.message.reply_text("✅ Message delivered to Ramneek.")
+        await update.message.reply_text(f"✅ Delivered to Ramneek:\n\"{text}\"")
     except Exception as e:
-        await update.message.reply_text(f"❌ Failed: {e}")
+        await update.message.reply_text(f"❌ Failed to send: {e}")
 
-async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Displays status of the bot, repo, and connections."""
-    repo_info = connect_and_sync_repo()
-    ramneek_id = get_saved_chat_id(RAMNEEK_CHAT_FILE)
+async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles inline button clicks from Devansh (e.g. Approve AI Reply, Deliver Custom)."""
+    query = update.callback_query
+    await query.answer()
 
-    status_msg = (
-        f"⚙️ **System Status**\n\n"
-        f"• **Repository**: `https://github.com/DevisDev365/Ramneek-Kour.git`\n"
-        f"• **Repo Sync**: {'✅ Connected' if repo_info['success'] else '❌ Disconnected'}\n"
-        f"• **Ramneek Connected**: {'✅ Yes (`' + str(ramneek_id) + '`)' if ramneek_id else '❌ Not yet'}\n"
-        f"• **AI Model**: `{INCEPTION_MODEL}`\n"
-    )
-    await update.message.reply_text(status_msg, parse_mode=ParseMode.MARKDOWN)
+    if not is_admin(update.effective_user):
+        return
+
+    data = query.data
+
+    # 1. Approve AI Draft
+    if data.startswith("approve_"):
+        draft_id = data.replace("approve_", "")
+        pending = pending_drafts.get(draft_id)
+        if not pending:
+            await query.edit_message_text("⚠️ This draft has already been handled or expired.")
+            return
+
+        ramneek_chat_id = pending["chat_id"]
+        draft_text = pending["draft"]
+
+        try:
+            connect_and_sync_repo()
+            await context.bot.send_message(chat_id=ramneek_chat_id, text=draft_text)
+            await query.edit_message_text(f"✅ **Sent to Ramneek:**\n\n\"{draft_text}\"", parse_mode=ParseMode.MARKDOWN)
+            del pending_drafts[draft_id]
+        except Exception as e:
+            await query.edit_message_text(f"❌ Failed to send: {e}")
+
+    # 2. Custom Reply Prompt
+    elif data.startswith("custom_"):
+        await query.message.reply_text(
+            "✍️ **To send your custom reply**, simply reply/swipe-right to this message or type:\n"
+            "`/reply Your words here`",
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+    # 3. Direct Message Delivery from Devansh
+    elif data.startswith("sendmsg_"):
+        msg_id = data.replace("sendmsg_", "")
+        text_to_send = pending_direct_messages.get(msg_id)
+        ramneek_chat_id = get_saved_chat_id(RAMNEEK_CHAT_FILE)
+
+        if not text_to_send or not ramneek_chat_id:
+            await query.edit_message_text("⚠️ Message expired or Ramneek is not connected.")
+            return
+
+        try:
+            connect_and_sync_repo()
+            await context.bot.send_message(chat_id=ramneek_chat_id, text=text_to_send)
+            await query.edit_message_text(f"✅ **Delivered to Ramneek:**\n\n\"{text_to_send}\"", parse_mode=ParseMode.MARKDOWN)
+            del pending_direct_messages[msg_id]
+        except Exception as e:
+            await query.edit_message_text(f"❌ Failed to send: {e}")
+
+    # 4. Cancel
+    elif data.startswith("cancelmsg_"):
+        msg_id = data.replace("cancelmsg_", "")
+        if msg_id in pending_direct_messages:
+            del pending_direct_messages[msg_id]
+        await query.edit_message_text("❌ Cancelled. Message was not sent.")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles text messages from both Admin (Devansh) and Ramneek."""
@@ -242,52 +291,118 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_text:
         return
 
+    # ==========================================
     # 1. ADMIN HANDLING (Devansh speaking to bot)
+    # ==========================================
     if is_admin(user):
         lower_text = user_text.lower().strip()
-        if "check on ramneek" in lower_text or "check" in lower_text or "nudge" in lower_text:
+
+        # Check for natural language trigger: "check on ramneek"
+        if any(trigger in lower_text for trigger in ["check on ramneek", "check ramneek", "/check", "nudge", "ping ramneek"]):
             await check_command(update, context)
             return
 
-        if "status" in lower_text:
-            await status_command(update, context)
+        # Check if Devansh replied to a forwarded message from Ramneek
+        reply_to = update.message.reply_to_message
+        ramneek_chat_id = get_saved_chat_id(RAMNEEK_CHAT_FILE)
+
+        if reply_to and ramneek_chat_id:
+            connect_and_sync_repo()
+            try:
+                await context.bot.send_message(chat_id=ramneek_chat_id, text=user_text)
+                await update.message.reply_text(f"✅ **Delivered your reply to Ramneek:**\n\"{user_text}\"")
+                return
+            except Exception as e:
+                await update.message.reply_text(f"❌ Failed to send: {e}")
+                return
+
+        # If Devansh sent a direct message, offer one-tap delivery to Ramneek
+        if ramneek_chat_id:
+            msg_id = str(uuid.uuid4())[:8]
+            pending_direct_messages[msg_id] = user_text
+
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🚀 Deliver this to Ramneek", callback_data=f"sendmsg_{msg_id}")],
+                [InlineKeyboardButton("❌ Cancel", callback_data=f"cancelmsg_{msg_id}")]
+            ])
+
+            await update.message.reply_text(
+                f"👑 **Devansh, would you like me to deliver this message to Ramneek?**\n\n"
+                f"> \"{user_text}\"",
+                reply_markup=keyboard,
+                parse_mode=ParseMode.MARKDOWN
+            )
             return
 
         await update.message.reply_text(
-            "👑 Devansh, to check on Ramneek, simply type:\n"
-            "👉 `check on ramneek`\n"
-            "or use `/check`"
+            "👑 **Devansh, here is how to control me:**\n\n"
+            "• Type `check on ramneek` or `/check` to ping her.\n"
+            "• To answer her, simply **swipe right / reply** to any message I forward to you!\n"
+            "• Or send custom text: `/reply <message>`"
         )
         return
 
-    # 2. RAMNEEK HANDLING
-    # Mandatory repo sync first
+    # ==========================================
+    # 2. RAMNEEK HANDLING (Broker Mode)
+    # ==========================================
+    ramneek_chat_id = update.effective_chat.id
     connect_and_sync_repo()
 
-    # Notify Devansh with her exact reply!
-    await notify_admin(
-        context,
-        f"📬 **Devansh, Ramneek just replied:**\n\n"
-        f"> \"{user_text}\""
+    # Generate AI draft response via Inception Labs mercury-3
+    ai_draft = "Devansh bas yeh jaanna chahta tha ki aap theek ho. Koi pressure nahi hai, aapka comfort sabse pehle hai."
+    try:
+        draft_response = await llm_client.generate_response([
+            {
+                "role": "system",
+                "content": (
+                    "You are Devansh's gentle assistant acting as a broker between Devansh and Ramneek. "
+                    "Ramneek and Devansh are not on talking terms right now. Devansh cares deeply and wanted to ensure she is doing fine. "
+                    f"Ramneek just sent: '{user_text}'. "
+                    "Suggest a single, warm, gentle, empathetic, non-pushy response of 1-2 sentences in natural conversational Hindi/English. "
+                    "If she asks a personal question that requires Devansh's personal perspective, acknowledge gently that you will check with Devansh. "
+                    "Output ONLY the exact reply text to Ramneek without any preamble, quotes, bullet points, or options."
+                )
+            },
+            {"role": "user", "content": user_text}
+        ])
+        if draft_response:
+            ai_draft = draft_response.strip().strip('"')
+    except Exception as e:
+        logger.warning(f"LLM draft generation error: {e}")
+
+    # Create pending draft ID for inline buttons
+    draft_id = str(uuid.uuid4())[:8]
+    pending_drafts[draft_id] = {
+        "chat_id": ramneek_chat_id,
+        "draft": ai_draft,
+        "question": user_text
+    }
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Approve & Send AI Reply", callback_data=f"approve_{draft_id}")],
+        [InlineKeyboardButton("✍️ Send My Own Custom Reply", callback_data=f"custom_{draft_id}")],
+    ])
+
+    admin_notification = (
+        f"📬 **Ramneek just sent a message:**\n\n"
+        f"🗣️ *\"{user_text}\"*\n\n"
+        f"💡 **Suggested AI Response:**\n"
+        f"_{ai_draft}_\n\n"
+        f"👇 *Tap Approve below, or simply swipe-right / reply to this message with your own words:*"
     )
 
-    # Deliver graceful topic closure and the song dedication to Ramneek
-    reply_to_ramneek = (
-        f"🌸 **Devansh ko tasalli ho gayi ki aap safe aur theek ho.**\n\n"
-        f"Ab main is baare mein aage kuch nahi poochungi, that topic ends here.\n\n"
-        f"Devansh wants you to listen to this song...\n"
-        f"🎵 **[{SONG_TITLE}]({SONG_URL})**\n\n"
-        f"Take good care of yourself 🤍"
-    )
+    # Relay to Devansh
+    await notify_admin(context, admin_notification, reply_markup=keyboard)
 
-    await update.message.reply_text(reply_to_ramneek, parse_mode=ParseMode.MARKDOWN)
+    # Let Ramneek know the message was received gently
+    await update.effective_chat.send_action(ChatAction.TYPING)
 
 def main():
     if not TELEGRAM_BOT_TOKEN:
         print("\n❌ Error: TELEGRAM_BOT_TOKEN is not set.")
         return
 
-    print("🚀 Initializing Ramneek Bot with Admin Support...")
+    print("🚀 Initializing Ramneek Broker Bot...")
     repo_status = connect_and_sync_repo()
     print(f"📦 Repository: {'CONNECTED' if repo_status['success'] else 'FAILED'}")
 
@@ -298,12 +413,13 @@ def main():
     app.add_handler(CommandHandler("admin", start_command))
     app.add_handler(CommandHandler("check", check_command))
     app.add_handler(CommandHandler("nudge", check_command))
-    app.add_handler(CommandHandler("say", say_command))
-    app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("reply", reply_command))
+    app.add_handler(CommandHandler("say", reply_command))
+    app.add_handler(CallbackQueryHandler(handle_callback_query))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("✅ Bot is online and listening! Press Ctrl+C to stop.")
-    app.run_polling()
+    print("✅ Broker Bot is online! Press Ctrl+C to stop.")
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
