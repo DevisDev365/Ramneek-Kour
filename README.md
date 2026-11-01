@@ -55,9 +55,24 @@ Edit `.env` and fill in:
 - `RAMNEEK_TELEGRAM_ID`: Ramneek's Telegram numeric ID (can be retrieved from [@userinfobot](https://t.me/userinfobot) or leaves empty on first run to see the logged ID).
 - `RAMNEEK_TELEGRAM_USERNAME`: Ramneek's Telegram username (without `@`).
 
-### 4. Run the Bot
+### 4. Run the Web Interactive Voice Portal (Instant Link for Ramneek)
 
 ```bash
+source .venv/bin/activate
+python web_app.py
+```
+Open **`http://localhost:8000`** in any browser (or deploy to Vercel/Render/Railway/cloud).
+- When Ramneek opens the page, she is greeted with an audio initiation prompt.
+- The bot speaks out in a sweet female voice in English/Hindi/Hinglish:
+  > *"Hi Ramneek, main Devansh ki assistant hoon. As you guys are not on talking terms right now... Devansh bohot worried hai whether you are okay. So... please tell me if you are okay..."*
+- Includes voice recognition mic input, audio visualizer, quick reply chips, and live repository sync!
+
+### 5. Run the Telegram Bot
+
+```bash
+source .venv/bin/activate
+python bot.py
+```
 source .venv/bin/activate
 python bot.py
 ```
