@@ -18,6 +18,8 @@ from config import (
     RAMNEEK_CHAT_FILE,
     SYNC_REPO_ON_MESSAGE,
     INCEPTION_MODEL,
+    SONG_URL,
+    SONG_TITLE,
 )
 from git_sync import connect_and_sync_repo, get_repo_summary
 from llm_client import InceptionLLMClient
@@ -95,16 +97,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.warning(f"Could not save chat details: {e}")
 
     welcome_msg = (
-        f"🌸 **Hello Ramneek!** Welcome to your private conversational bot.\n\n"
-        f"📁 **Repository Status**: {status_text} (`{repo_info.get('commit_hash', 'unknown')}`)\n"
-        f"🧠 **Model**: `{INCEPTION_MODEL}`\n\n"
-        f"Whenever you talk to me, I first connect and sync with your repository so our state is always up to date!\n\n"
-        f"**Available Commands:**\n"
-        f"• `/repo` - Check & sync with the GitHub repository\n"
-        f"• `/status` - Check bot and API status\n"
-        f"• `/clear` - Reset current conversation memory\n"
-        f"• `/help` - Show help message\n\n"
-        f"How are you doing today?"
+        f"🌸 **Hi Ramneek!**\n\n"
+        f"Main Devansh ki assistant hoon. Thank you for connecting here!\n\n"
+        f"Devansh bohot worried tha ki aap theek ho ya nahi... aur ab hum connect ho gaye hain, "
+        f"use tasalli ho gayi ki aap safe aur theek ho.\n\n"
+        f"Main is baare mein ab aage kuch nahi poochungi, that topic ends here.\n\n"
+        f"Bas... Devansh chahta tha ki aap yeh song suno:\n"
+        f"🎵 **[{SONG_TITLE}]({SONG_URL})**\n\n"
+        f"Take good care of yourself 🤍"
     )
     await update.message.reply_text(welcome_msg, parse_mode=ParseMode.MARKDOWN)
 

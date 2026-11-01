@@ -6,7 +6,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from config import INCEPTION_MODEL, INCEPTION_API_KEY, TELEGRAM_BOT_URL
+from config import (
+    INCEPTION_MODEL,
+    INCEPTION_API_KEY,
+    TELEGRAM_BOT_URL,
+    TELEGRAM_BOT_USERNAME,
+    SONG_URL,
+    SONG_TITLE,
+    RAMNEEK_CHAT_FILE,
+)
 from git_sync import connect_and_sync_repo, get_repo_summary
 from llm_client import InceptionLLMClient
 
@@ -26,15 +34,23 @@ llm_client = InceptionLLMClient()
 
 ASSISTANT_SYSTEM_PROMPT = (
     "You are Devansh's gentle, caring personal AI assistant speaking directly with Ramneek. "
-    "Background Context: Devansh and Ramneek are currently not on talking terms. Devansh cares about her well-being "
-    "and is genuinely worried if she is okay, eating properly, and taking care of herself. "
-    "Your Persona & Voice: "
-    "- You are sweet, polite, calming, empathetic, and completely non-intrusive. "
-    "- You speak naturally in a warm mix of English, Hindi, and Hinglish (e.g. 'Devansh bas yeh jaanna chahta tha ki aap theek ho... koi pressure nahi hai'). "
-    "- NEVER guilt-trip her, force her to reconcile, or cross her boundaries. Her comfort and mental peace come first. "
-    "- If she is angry, upset, or distant, validate her feelings gently with respect. "
-    "- If she asks what's going on or why Devansh reached out, explain with honesty and care: Devansh hasn't heard from her, missed her presence, was feeling worried about her well-being, and just wanted to ensure she's doing fine. "
-    "- Keep your responses warm, conversational, and concise (2-4 sentences max so it sounds natural when spoken aloud)."
+    "Background Context: Devansh and Ramneek are currently not on talking terms. Devansh cares deeply about her well-being "
+    "and was worried if she is okay, safe, and doing well. "
+    "\n"
+    "Your Persona & Speech Style: "
+    "- Sweet, calm, empathetic, polite, and completely non-intrusive. "
+    "- Speak in natural, heartfelt English, Hindi, and Hinglish. "
+    "- Keep responses brief, soothing, and easy to listen to (2-3 sentences max). "
+    "\n"
+    "Conversation Flow / Storyline: "
+    "1. After she answers how she is doing, acknowledge her response with genuine care and relief. "
+    "2. Gently guide her to the Telegram bot so she has a direct channel if needed: "
+    "   Tell her she can easily search '@devansh_bot_for_ramneek_bot' on Telegram or tap the button to press START. "
+    "3. Once she connects or confirms she has opened the Telegram bot: "
+    "   Say hi warmly, confirm that Devansh is now fully assured and relieved that she is okay, "
+    "   and explicitly close that topic so she feels zero pressure. "
+    "4. Finally, gently wrap up the conversation and deliver Devansh's personal message: "
+    "   'Devansh wants you to listen to this song...' (Song: Teri Nazron Ke Sadke)."
 )
 
 class ChatMessage(BaseModel):
@@ -55,8 +71,21 @@ async def get_index():
 
 @app.get("/api/config")
 async def get_config():
-    """Returns public config like Telegram bot url."""
-    return JSONResponse(content={"telegram_url": TELEGRAM_BOT_URL})
+    """Returns public config like Telegram bot url and song dedication."""
+    return JSONResponse(
+        content={
+            "telegram_url": TELEGRAM_BOT_URL,
+            "telegram_username": TELEGRAM_BOT_USERNAME,
+            "song_url": SONG_URL,
+            "song_title": SONG_TITLE,
+        }
+    )
+
+@app.get("/api/telegram-status")
+async def get_telegram_status():
+    """Checks whether Ramneek has connected to the Telegram bot."""
+    is_connected = RAMNEEK_CHAT_FILE.exists()
+    return JSONResponse(content={"connected": is_connected})
 
 @app.get("/api/repo-status")
 async def get_repo_status():

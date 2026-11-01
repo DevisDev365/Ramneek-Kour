@@ -28,6 +28,10 @@ REMOTE_NAME = os.getenv("GIT_REMOTE", "origin")
 BRANCH_NAME = os.getenv("GIT_BRANCH", "main")
 SYNC_REPO_ON_MESSAGE = os.getenv("SYNC_REPO_ON_MESSAGE", "true").lower() in ("true", "1", "yes")
 
+# Song Dedication
+SONG_URL = os.getenv("SONG_URL", "https://music.youtube.com/playlist?list=OLAK5uy_muFG1a76efS0XYoJNVLU7L5YsiDHymCyk")
+SONG_TITLE = os.getenv("SONG_TITLE", "Teri Nazron Ke Sadke")
+
 # Bot Persona Settings
 SYSTEM_PROMPT = os.getenv(
     "SYSTEM_PROMPT",

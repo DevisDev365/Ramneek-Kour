@@ -1,4 +1,4 @@
-// Ramneek Conversational Assistant Frontend
+// Ramneek Conversational Assistant Frontend - Storyline Implementation
 
 // State
 let isVoiceEnabled = true;
@@ -7,7 +7,10 @@ let isRecognizing = false;
 let conversationHistory = [];
 let femaleVoice = null;
 let telegramUrl = "https://t.me/devansh_bot_for_ramneek_bot";
-let hasSuggestedTelegram = false;
+let telegramUsername = "devansh_bot_for_ramneek_bot";
+let songUrl = "https://music.youtube.com/playlist?list=OLAK5uy_muFG1a76efS0XYoJNVLU7L5YsiDHymCyk";
+let songTitle = "Teri Nazron Ke Sadke";
+let storyStage = 0; // 0: Start, 1: Well-being answered -> Guide to TG, 2: TG connected -> Deliver Song & End
 
 // Elements
 const startOverlay = document.getElementById('start-overlay');
@@ -24,7 +27,6 @@ const voiceBanner = document.getElementById('voice-banner');
 const avatarContainer = document.getElementById('avatar-container');
 const voiceStatusLabel = document.getElementById('voice-status-label');
 const quickChips = document.getElementById('quick-chips');
-const tgChipBtn = document.getElementById('tg-chip-btn');
 
 // Initial greeting script
 const INITIAL_GREETING = 
@@ -38,10 +40,6 @@ function initVoices() {
   const voices = window.speechSynthesis.getVoices();
   if (!voices || voices.length === 0) return;
 
-  // Search priority:
-  // 1. Hindi female voice (Google हिन्दी, Lekha, Heera, etc.)
-  // 2. en-IN female voice (Veena, Neerja, etc.)
-  // 3. Natural female en-US/UK voice (Samantha, Victoria, Karen, Zira)
   const preferredVoice = voices.find(v => 
     (v.lang.startsWith('hi') || v.lang.startsWith('en-IN')) && 
     (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('google') || v.name.toLowerCase().includes('heera') || v.name.toLowerCase().includes('veena'))
@@ -60,10 +58,13 @@ if ('speechSynthesis' in window) {
 }
 
 // Speak text using Web Speech API
-function speakText(text) {
-  if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
+function speakText(text, onComplete = null) {
+  if (!isVoiceEnabled || !('speechSynthesis' in window)) {
+    if (onComplete) onComplete();
+    return;
+  }
 
-  window.speechSynthesis.cancel(); // Stop any pending speech
+  window.speechSynthesis.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
   if (femaleVoice) {
@@ -84,6 +85,7 @@ function speakText(text) {
     voiceBanner.classList.remove('speaking');
     avatarContainer.classList.remove('speaking');
     voiceStatusLabel.textContent = "Listening...";
+    if (onComplete) onComplete();
   };
 
   utterance.onerror = (e) => {
@@ -91,6 +93,7 @@ function speakText(text) {
     isSpeaking = false;
     voiceBanner.classList.remove('speaking');
     avatarContainer.classList.remove('speaking');
+    if (onComplete) onComplete();
   };
 
   window.speechSynthesis.speak(utterance);
@@ -124,21 +127,6 @@ function appendMessage(role, text, extraHtml = null) {
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
-// Show Telegram transition card
-function showTelegramCard() {
-  const tgHtml = `
-    <div class="tg-card">
-      <span class="tg-card-text">You can talk to the bot directly on Telegram anytime:</span>
-      <a href="${telegramUrl}" target="_blank" class="tg-link-btn">
-        <span>✈️ Open Telegram Bot</span>
-      </a>
-    </div>
-  `;
-  const promptText = "Agar aapko yahan website par baat karna thoda inconvenient lag raha hai, toh aap direct Telegram par bhi message kar sakti hain:";
-  appendMessage('bot', promptText, tgHtml);
-  speakText("Aap chahein toh mujhse Telegram par bhi baat kar sakti hain.");
-}
-
 // Check initial repo connection and fetch config
 async function checkRepoConnection() {
   try {
@@ -158,13 +146,106 @@ async function checkRepoConnection() {
 
     if (configRes.ok) {
       const configData = await configRes.json();
-      if (configData.telegram_url) {
-        telegramUrl = configData.telegram_url;
-      }
+      if (configData.telegram_url) telegramUrl = configData.telegram_url;
+      if (configData.telegram_username) telegramUsername = configData.telegram_username;
+      if (configData.song_url) songUrl = configData.song_url;
+      if (configData.song_title) songTitle = configData.song_title;
     }
   } catch (err) {
     repoStatusText.textContent = "Repo: Active";
   }
+}
+
+// Guide Ramneek to search or open the Telegram Bot
+function showTelegramGuidance() {
+  storyStage = 1;
+  const guideHtml = `
+    <div class="tg-guide-card">
+      <div class="tg-guide-header">
+        <span>✈️ Connect on Telegram</span>
+      </div>
+      <ol class="tg-steps">
+        <li>Open Telegram and search for <strong>@${telegramUsername}</strong></li>
+        <li>Or tap the button below to open directly:</li>
+      </ol>
+      <div class="tg-actions">
+        <a href="${telegramUrl}" target="_blank" class="tg-link-btn" id="tg-open-link">
+          <span>✈️ Open @${telegramUsername}</span>
+        </a>
+        <button class="tg-confirm-btn" id="tg-confirm-btn">
+          I'm Connected on Telegram ✅
+        </button>
+      </div>
+    </div>
+  `;
+
+  const guideText = 
+    "Aap Telegram par @" + telegramUsername + " search kar sakti hain, ya phir neeche button par tap karke 'START' kar sakti hain. Jab aap connect ho jayein, bas confirm kar dijiyega:";
+  
+  appendMessage('bot', guideText, guideHtml);
+  speakText("Aap Telegram par @" + telegramUsername + " search kar sakti hain, ya neeche button se direct open kar sakti hain.");
+
+  // Attach confirm listener
+  setTimeout(() => {
+    const confirmBtn = document.getElementById('tg-confirm-btn');
+    const openLink = document.getElementById('tg-open-link');
+
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => {
+        completeStoryline();
+      });
+    }
+
+    if (openLink) {
+      openLink.addEventListener('click', () => {
+        // When she clicks the link, give her a moment and trigger completion
+        setTimeout(() => {
+          completeStoryline();
+        }, 3000);
+      });
+    }
+  }, 100);
+}
+
+// Complete storyline: Say hi, end the topic, cut conversation, and present the song dedication
+function completeStoryline() {
+  if (storyStage === 2) return;
+  storyStage = 2;
+
+  const closingText = 
+    "Hi Ramneek! Devansh ko tasalli ho gayi ki aap safe aur theek ho. Ab main is baare mein aage kuch nahi poochungi, that topic ends here.";
+  
+  const songMessage = "Devansh wants you to listen to this song...";
+
+  const musicHtml = `
+    <div class="music-card">
+      <div class="music-icon-wrap">🎵</div>
+      <div class="music-details">
+        <span class="music-sub">Devansh wants you to listen to this song...</span>
+        <h3 class="music-title">${songTitle}</h3>
+      </div>
+      <a href="${songUrl}" target="_blank" class="music-play-btn">
+        <span>▶️ Listen on YouTube Music</span>
+      </a>
+    </div>
+  `;
+
+  appendMessage('bot', closingText);
+
+  // Speak closing text first, then present the song
+  speakText(closingText, () => {
+    setTimeout(() => {
+      appendMessage('bot', songMessage, musicHtml);
+      speakText("Devansh chahta tha ki aap bas yeh song suno.");
+    }, 600);
+  });
+
+  // Update footer and chips to gentle closure
+  quickChips.innerHTML = `
+    <div style="padding: 6px 12px; font-size: 13px; color: #736b79; font-style: italic;">
+      🤍 Take good care of yourself, Ramneek.
+    </div>
+  `;
 }
 
 // Send user message to backend
@@ -211,21 +292,26 @@ async function sendMessage(textToSend) {
     }
 
     // Speak aloud
-    speakText(reply);
-
-    // Gently offer Telegram connection if she is chatting and hasn't seen it yet
-    if (conversationHistory.length >= 4 && !hasSuggestedTelegram) {
-      hasSuggestedTelegram = true;
-      setTimeout(() => {
-        showTelegramCard();
-      }, 3500);
-    }
+    speakText(reply, () => {
+      // If we are at stage 0 (user answered well-being), transition to Telegram guidance
+      if (storyStage === 0) {
+        setTimeout(() => {
+          showTelegramGuidance();
+        }, 1200);
+      }
+    });
 
   } catch (error) {
     console.error('Chat error:', error);
-    const errText = "I'm sorry Ramneek, I had a momentary connection hiccup. But please know Devansh truly cares and wants to make sure you're safe.";
+    const errText = "I'm glad to hear from you Ramneek. Devansh just wanted to be sure you are safe and doing well.";
     appendMessage('bot', errText);
-    speakText(errText);
+    speakText(errText, () => {
+      if (storyStage === 0) {
+        setTimeout(() => {
+          showTelegramGuidance();
+        }, 1000);
+      }
+    });
   } finally {
     sendBtn.disabled = false;
   }
@@ -242,7 +328,7 @@ function setupSpeechRecognition() {
   const recognition = new SpeechRecognition();
   recognition.continuous = false;
   recognition.interimResults = false;
-  recognition.lang = 'hi-IN'; // Recognizes Hindi and Hinglish/Indian English
+  recognition.lang = 'hi-IN';
 
   recognition.onstart = () => {
     isRecognizing = true;
@@ -286,7 +372,6 @@ startBtn.addEventListener('click', () => {
   startOverlay.classList.add('hidden');
   initVoices();
 
-  // Show and speak the initial message
   setTimeout(() => {
     appendMessage('bot', INITIAL_GREETING);
     conversationHistory.push({ role: 'assistant', content: INITIAL_GREETING });
@@ -329,7 +414,7 @@ quickChips.addEventListener('click', (e) => {
   if (!chip) return;
 
   if (chip.id === 'tg-chip-btn') {
-    showTelegramCard();
+    showTelegramGuidance();
     return;
   }
 
