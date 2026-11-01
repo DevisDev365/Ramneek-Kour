@@ -407,49 +407,63 @@ body {
   align-self: flex-end;
 }
 
-/* Quick Chips */
-.quick-chips {
-  padding: 6px 14px 10px 14px;
+/* Single Telegram Prompt Card */
+.telegram-prompt-container {
+  padding: 8px 16px 12px 16px;
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  flex-direction: column;
 }
 
-.quick-chips::-webkit-scrollbar {
-  display: none;
+.telegram-prompt-card {
+  background: linear-gradient(135deg, #f0f7fe 0%, #e2f0fd 100%);
+  border: 1px solid #bce0fd;
+  border-radius: 20px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 4px 16px rgba(42, 171, 238, 0.12);
+  animation: fadeIn 0.4s ease;
 }
 
-.chip {
-  background: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(220, 215, 225, 0.8);
-  padding: 7px 14px;
+.tg-prompt-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tg-prompt-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #125585;
+}
+
+.tg-prompt-desc {
+  font-size: 12px;
+  color: #4b6782;
+}
+
+.tg-main-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #2aabee;
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 18px;
   border-radius: 999px;
-  font-size: 12.5px;
-  color: #4b4453;
   white-space: nowrap;
-  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(42, 171, 238, 0.35);
   transition: all 0.2s ease;
 }
 
-.chip:hover {
-  background: #ffffff;
-  border-color: var(--primary-pink);
-  color: #ea7088;
+.tg-main-btn:hover {
+  background: #1f9ddf;
   transform: translateY(-1px);
-}
-
-.chip.tg-chip {
-  background: #e7f2fd;
-  border-color: #bee0fc;
-  color: #1d72b8;
-  font-weight: 500;
-}
-
-.chip.tg-chip:hover {
-  background: #2aabee;
-  color: #ffffff;
-  border-color: #2aabee;
+  box-shadow: 0 6px 16px rgba(42, 171, 238, 0.45);
 }
 
 /* Telegram Interactive Card inside chat */

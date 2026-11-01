@@ -76,32 +76,26 @@
       <!-- Messages injected here dynamically -->
     </main>
 
-    <!-- Quick Reply Chips -->
-    <div class="quick-chips" id="quick-chips">
-      <button class="chip" data-text="I'm okay, tell him not to worry.">I'm okay, don't worry ✨</button>
-      <button class="chip" data-text="Sab theek hai. What happened?">Sab theek hai, what happened? 🌿</button>
-      <button class="chip" data-text="Why is he worried about me?">Why is he worried? 💭</button>
-      <button class="chip tg-chip" id="tg-chip-btn">Chat on Telegram ✈️</button>
-      <button class="chip" data-text="I need some space right now.">I need some space 🤍</button>
-    </div>
+    <!-- Single Telegram Prompt Container -->
+    <div id="telegram-prompt-container" class="telegram-prompt-container"></div>
 
     <!-- Input Footer -->
     <footer class="app-footer">
       <div class="input-wrapper">
-        <button id="mic-btn" class="mic-btn" title="Speak in Hindi/English">
+        <button id="mic-btn" class="mic-btn" title="Microphone Active">
           <span id="mic-icon">🎙️</span>
         </button>
         <textarea 
           id="message-input" 
           rows="1" 
-          placeholder="Reply in English, Hindi, or Hinglish..."
+          placeholder="Speak or type your reply here..."
           autocomplete="off"
         ></textarea>
         <button id="send-btn" class="send-btn" title="Send message">
           <span>➤</span>
         </button>
       </div>
-      <p class="disclaimer">Devansh just wanted to be sure you are safe & doing well. Take all the time you need.</p>
+      <p class="disclaimer">Devansh just wanted to be sure you are safe & doing well.</p>
     </footer>
   </div>
 
