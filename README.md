@@ -1,41 +1,93 @@
 # Ramneek Bot 🌸
 
-A personalized conversational AI bot designed exclusively for **Ramneek**.
+A dedicated, private conversational AI bot created exclusively for **Ramneek**, powered by **Inception Labs (`mercury-3`)** and connected directly to this repository.
 
 ---
 
-## 📌 Project Overview
+## 🌟 Key Features
 
-This repository hosts a dedicated conversational bot designed to cater specifically to Ramneek's preferences, daily tasks, reminders, and conversational style.
+1. **🔒 Exclusively for Ramneek**:
+   - Access is restricted strictly to Ramneek via Telegram User ID or Username (`RAMNEEK_TELEGRAM_ID` / `RAMNEEK_TELEGRAM_USERNAME`).
+   - Anyone else messaging the bot will receive an access restricted notice.
 
-### Key Tenets
-1. **Exclusive Access**: Built and personalized specifically for Ramneek.
-2. **Repository-First Protocol**: Whenever Ramneek converses with the system, it must first establish and verify connection with this repository (`git status` / `git pull` / sync remote state) to ensure state and memory are always synchronized.
-3. **Continuity & Memory**: Persistent tracking of conversations, notes, and milestones.
+2. **⚡ Mandatory Repository Connection Protocol**:
+   - **Every time Ramneek converses**, the bot immediately connects to and synchronizes with the remote GitHub repository (`https://github.com/DevisDev365/Ramneek-Kour.git`).
+   - Verifies git connectivity, checks commits, and fast-forwards changes.
 
----
+3. **🧠 Inception Labs Intelligence (`mercury-3`)**:
+   - Integrated with the Inception Labs chat completions API (`https://api.inceptionlabs.ai/v1/chat/completions`).
+   - Custom tailored empathetic, witty, and supportive conversational companion persona.
 
-## 🚀 Repository & Interaction Protocol
-
-> **Rule for Agent / System**:
-> Before initiating any conversation or processing user input:
-> 1. Verify remote git connectivity (`git remote -v`).
-> 2. Fetch and pull any latest commits from `origin/main`.
-> 3. Verify clean working tree or handle sync.
-
----
-
-## 📂 Project Structure
-
-*(Under active setup)*
-- `README.md`: Project summary and protocols.
-- `.gitignore`: Standard git ignore for conversational bot environment.
+4. **💬 Interactive Telegram Interface**:
+   - Natural, real-time messaging with typing status indicators.
+   - Multi-turn conversation memory with history trimming.
 
 ---
 
-## 🛠️ Planned Tech Stack & Features
+## 🚀 Getting Started
 
-- [ ] Interactive Chat Interface (Web / Telegram / Streamlit / App)
-- [ ] Session & Memory Storage
-- [ ] Personalized Persona & Tone for Ramneek
-- [ ] Git Auto-Sync Protocol on every interaction
+### 1. Prerequisites
+- Python 3.9+
+- A Telegram Bot Token from [@BotFather](https://t.me/BotFather)
+- An Inception Labs API Key (`INCEPTION_API_KEY`)
+
+### 2. Setup Environment
+
+```bash
+# Activate virtual environment
+source .venv/bin/activate
+
+# Install dependencies (if not already installed)
+pip install -r requirements.txt
+```
+
+### 3. Configure Credentials
+
+Create a `.env` file based on `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and fill in:
+- `TELEGRAM_BOT_TOKEN`: The token you received from @BotFather.
+- `INCEPTION_API_KEY`: Your Inception Labs API key.
+- `RAMNEEK_TELEGRAM_ID`: Ramneek's Telegram numeric ID (can be retrieved from [@userinfobot](https://t.me/userinfobot) or leaves empty on first run to see the logged ID).
+- `RAMNEEK_TELEGRAM_USERNAME`: Ramneek's Telegram username (without `@`).
+
+### 4. Run the Bot
+
+```bash
+source .venv/bin/activate
+python bot.py
+```
+
+---
+
+## 📱 Bot Commands
+
+| Command | Description |
+|---|---|
+| `/start` | Greets Ramneek, checks repository connection, and outlines options |
+| `/repo` | Explicitly verifies and outputs remote git connectivity and commit status |
+| `/status` | Shows model name, memory turns, and repository health |
+| `/clear` | Resets conversation context memory |
+| `/help` | Explains bot capabilities and usage |
+
+---
+
+## 📂 Project Architecture
+
+```
+Ramneek Bot/
+├── .env.example          # Template for secrets and credentials
+├── .gitignore            # Git exclusion rules
+├── AGENTS.md             # Agent directives & pre-conversation protocol
+├── README.md             # Project documentation
+├── bot.py                # Main Telegram Bot application & dispatch loop
+├── config.py             # Environment configuration & constants
+├── git_sync.py           # Pre-conversation repository connection & sync engine
+├── llm_client.py         # Inception Labs (mercury-3) API integration
+├── memory.py             # Multi-turn conversation history management
+└── requirements.txt      # Python dependencies
+```
