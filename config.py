@@ -8,11 +8,14 @@ load_dotenv(BASE_DIR / ".env")
 
 # Telegram Configuration
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "devansh_bot_for_ramneek_bot").strip().lstrip("@")
+TELEGRAM_BOT_URL = f"https://t.me/{TELEGRAM_BOT_USERNAME}"
 
 # Exclusive Access: Ramneek's Telegram identifiers
 # Support both numeric ID and username
 RAMNEEK_TELEGRAM_ID = os.getenv("RAMNEEK_TELEGRAM_ID", "").strip()
 RAMNEEK_TELEGRAM_USERNAME = os.getenv("RAMNEEK_TELEGRAM_USERNAME", "").strip().lstrip("@")
+RAMNEEK_CHAT_FILE = BASE_DIR / "data" / "ramneek_chat.json"
 
 # Inception Labs API Configuration
 INCEPTION_API_KEY = os.getenv("INCEPTION_API_KEY", "").strip()

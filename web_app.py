@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
-from config import INCEPTION_MODEL, INCEPTION_API_KEY
+from config import INCEPTION_MODEL, INCEPTION_API_KEY, TELEGRAM_BOT_URL
 from git_sync import connect_and_sync_repo, get_repo_summary
 from llm_client import InceptionLLMClient
 
@@ -52,6 +52,11 @@ async def get_index():
     if not index_file.exists():
         raise HTTPException(status_code=404, detail="Interface not found")
     return FileResponse(index_file)
+
+@app.get("/api/config")
+async def get_config():
+    """Returns public config like Telegram bot url."""
+    return JSONResponse(content={"telegram_url": TELEGRAM_BOT_URL})
 
 @app.get("/api/repo-status")
 async def get_repo_status():

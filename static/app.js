@@ -6,6 +6,8 @@ let isSpeaking = false;
 let isRecognizing = false;
 let conversationHistory = [];
 let femaleVoice = null;
+let telegramUrl = "https://t.me/devansh_bot_for_ramneek_bot";
+let hasSuggestedTelegram = false;
 
 // Elements
 const startOverlay = document.getElementById('start-overlay');
@@ -22,6 +24,7 @@ const voiceBanner = document.getElementById('voice-banner');
 const avatarContainer = document.getElementById('avatar-container');
 const voiceStatusLabel = document.getElementById('voice-status-label');
 const quickChips = document.getElementById('quick-chips');
+const tgChipBtn = document.getElementById('tg-chip-btn');
 
 // Initial greeting script
 const INITIAL_GREETING = 
@@ -94,13 +97,19 @@ function speakText(text) {
 }
 
 // Append message bubble to chat window
-function appendMessage(role, text) {
+function appendMessage(role, text, extraHtml = null) {
   const wrapper = document.createElement('div');
   wrapper.className = `message-wrapper ${role}`;
 
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
   bubble.textContent = text;
+
+  if (extraHtml) {
+    const extraDiv = document.createElement('div');
+    extraDiv.innerHTML = extraHtml;
+    bubble.appendChild(extraDiv);
+  }
 
   const time = document.createElement('span');
   time.className = 'message-time';
@@ -115,15 +124,43 @@ function appendMessage(role, text) {
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
 
-// Check initial repo connection
+// Show Telegram transition card
+function showTelegramCard() {
+  const tgHtml = `
+    <div class="tg-card">
+      <span class="tg-card-text">You can talk to the bot directly on Telegram anytime:</span>
+      <a href="${telegramUrl}" target="_blank" class="tg-link-btn">
+        <span>✈️ Open Telegram Bot</span>
+      </a>
+    </div>
+  `;
+  const promptText = "Agar aapko yahan website par baat karna thoda inconvenient lag raha hai, toh aap direct Telegram par bhi message kar sakti hain:";
+  appendMessage('bot', promptText, tgHtml);
+  speakText("Aap chahein toh mujhse Telegram par bhi baat kar sakti hain.");
+}
+
+// Check initial repo connection and fetch config
 async function checkRepoConnection() {
   try {
-    const res = await fetch('/api/repo-status');
-    const data = await res.json();
-    if (data.success) {
-      repoStatusText.textContent = `Repo: ${data.commit_hash || 'Connected'}`;
-    } else {
-      repoStatusText.textContent = "Repo: Synced";
+    const [repoRes, configRes] = await Promise.all([
+      fetch('/api/repo-status'),
+      fetch('/api/config')
+    ]);
+
+    if (repoRes.ok) {
+      const data = await repoRes.json();
+      if (data.success) {
+        repoStatusText.textContent = `Repo: ${data.commit_hash || 'Connected'}`;
+      } else {
+        repoStatusText.textContent = "Repo: Synced";
+      }
+    }
+
+    if (configRes.ok) {
+      const configData = await configRes.json();
+      if (configData.telegram_url) {
+        telegramUrl = configData.telegram_url;
+      }
     }
   } catch (err) {
     repoStatusText.textContent = "Repo: Active";
@@ -175,6 +212,14 @@ async function sendMessage(textToSend) {
 
     // Speak aloud
     speakText(reply);
+
+    // Gently offer Telegram connection if she is chatting and hasn't seen it yet
+    if (conversationHistory.length >= 4 && !hasSuggestedTelegram) {
+      hasSuggestedTelegram = true;
+      setTimeout(() => {
+        showTelegramCard();
+      }, 3500);
+    }
 
   } catch (error) {
     console.error('Chat error:', error);
@@ -281,8 +326,15 @@ messageInput.addEventListener('input', () => {
 // Quick reply chips
 quickChips.addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
-  if (chip) {
-    const text = chip.getAttribute('data-text');
+  if (!chip) return;
+
+  if (chip.id === 'tg-chip-btn') {
+    showTelegramCard();
+    return;
+  }
+
+  const text = chip.getAttribute('data-text');
+  if (text) {
     sendMessage(text);
   }
 });

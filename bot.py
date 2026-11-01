@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import json
 from telegram import Update
 from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
@@ -14,6 +15,7 @@ from config import (
     TELEGRAM_BOT_TOKEN,
     RAMNEEK_TELEGRAM_ID,
     RAMNEEK_TELEGRAM_USERNAME,
+    RAMNEEK_CHAT_FILE,
     SYNC_REPO_ON_MESSAGE,
     INCEPTION_MODEL,
 )
@@ -76,6 +78,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Connect with repo first
     repo_info = connect_and_sync_repo()
     status_text = "Connected" if repo_info["success"] else "Connection issue"
+
+    # Save Ramneek's chat details for future notifications / nudges
+    try:
+        RAMNEEK_CHAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        chat_data = {
+            "chat_id": update.effective_chat.id,
+            "user_id": update.effective_user.id,
+            "username": update.effective_user.username,
+            "first_name": update.effective_user.first_name,
+        }
+        with open(RAMNEEK_CHAT_FILE, "w", encoding="utf-8") as f:
+            json.dump(chat_data, f, indent=2)
+        logger.info(f"Saved Ramneek's chat details: chat_id={update.effective_chat.id}")
+    except Exception as e:
+        logger.warning(f"Could not save chat details: {e}")
 
     welcome_msg = (
         f"🌸 **Hello Ramneek!** Welcome to your private conversational bot.\n\n"
