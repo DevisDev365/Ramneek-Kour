@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>A Message for Ramneek 🌸</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="background-decorations">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+
+  <!-- Audio Start Overlay (Handles Browser Autoplay Restrictions) -->
+  <div id="start-overlay" class="start-overlay">
+    <div class="overlay-card">
+      <div class="pulse-flower">🌸</div>
+      <h2>For Ramneek</h2>
+      <p class="overlay-subtext">A gentle check-in from Devansh's assistant</p>
+      <button id="start-btn" class="start-btn">
+        <span class="icon">🎧</span>
+        <span>Tap to listen & converse</span>
+      </button>
+      <p class="tap-hint">Sound on for the best experience</p>
+    </div>
+  </div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="avatar-container" id="avatar-container">
+          <div class="avatar-ring"></div>
+          <span class="avatar-emoji">🌸</span>
+        </div>
+        <div class="assistant-meta">
+          <div class="title-row">
+            <h1>Devansh's Assistant</h1>
+            <span class="online-indicator" title="Online & Connected"></span>
+          </div>
+          <p class="subtitle">Speaking to Ramneek with care</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <!-- Voice Toggle -->
+        <button id="voice-toggle-btn" class="icon-btn" title="Toggle Voice Output">
+          <span id="voice-icon">🔊</span>
+        </button>
+        <!-- Repo Connection Status -->
+        <div class="repo-badge" id="repo-badge" title="Repository connection status">
+          <span class="repo-dot"></span>
+          <span id="repo-status-text">Connecting repo...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Voice Visualizer Banner -->
+    <div class="voice-banner" id="voice-banner">
+      <div class="wave-container" id="wave-container">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+      </div>
+      <span id="voice-status-label" class="voice-status-label">Listening...</span>
+    </div>
+
+    <!-- Chat Messages Window -->
+    <main class="chat-window" id="chat-window">
+      <!-- Messages injected here dynamically -->
+    </main>
+
+    <!-- Quick Reply Chips -->
+    <div class="quick-chips" id="quick-chips">
+      <button class="chip" data-text="I'm okay, tell him not to worry.">I'm okay, don't worry ✨</button>
+      <button class="chip" data-text="Sab theek hai. What happened?">Sab theek hai, what happened? 🌿</button>
+      <button class="chip" data-text="Why is he worried about me?">Why is he worried? 💭</button>
+      <button class="chip" data-text="I need some space right now.">I need some space 🤍</button>
+    </div>
+
+    <!-- Input Footer -->
+    <footer class="app-footer">
+      <div class="input-wrapper">
+        <button id="mic-btn" class="mic-btn" title="Speak in Hindi/English">
+          <span id="mic-icon">🎙️</span>
+        </button>
+        <textarea 
+          id="message-input" 
+          rows="1" 
+          placeholder="Reply in English, Hindi, or Hinglish..."
+          autocomplete="off"
+        ></textarea>
+        <button id="send-btn" class="send-btn" title="Send message">
+          <span>➤</span>
+        </button>
+      </div>
+      <p class="disclaimer">Devansh just wanted to be sure you are safe & doing well. Take all the time you need.</p>
+    </footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
