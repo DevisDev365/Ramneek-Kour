@@ -157,8 +157,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     connect_and_sync_repo()
 
     welcome_msg = (
-        f"🌸 **Hi Ramneek, I'm Devansh's assistant.**\n\n"
-        f"As you guys are not on talking terms right now... Devansh was genuinely worried if you're okay.\n\n"
+        f"🌸 **Hi Ramneek, I'm the assistant bot Devansh created for you.**\n\n"
+        f"As you guys are not on talking terms right now, Devansh wanted to make sure you have a safe, direct space to talk without any pressure.\n\n"
+        f"You can safely close the website now — the rest of our conversation will happen right here. "
+        f"Whatever you write to me, Devansh will see it and tell me how to reply, so you two can communicate comfortably.\n\n"
         f"Please tell me, are you doing okay?"
     )
     await update.message.reply_text(welcome_msg)

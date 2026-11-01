@@ -208,8 +208,10 @@ async function sendMessage(textToSend) {
 
     const replyText = 
       "Devansh wanted to make sure you are doing okay, and he asked me to share two things with you:\n\n" +
-      "1. Devansh wants you to listen to this song (playing now in the background 🎶)\n" +
-      "2. Please connect with him on Telegram by clicking the button below:";
+      "1. 🎶 Devansh wants you to listen to this song (playing now in the background).\n\n" +
+      "2. ✈️ Please connect to the Telegram bot below (Very Important):\n" +
+      "Please do not message Devansh directly on his personal Telegram. Instead, click the button below to start a chat with this bot he created for you.\n\n" +
+      "The rest of our conversation will happen there! You can leave this website after connecting and continue chatting with the bot anytime. Whatever you write there will reach Devansh, and he will tell the bot what to reply so our conversation can go on 🌸";
 
     const actionCardsHtml = `
       <!-- Automatic Background Music Player Card -->
@@ -232,11 +234,13 @@ async function sendMessage(textToSend) {
 
       <!-- Telegram Connect Action Card -->
       <div class="tg-action-card">
-        <span class="tg-action-sub">✨ Task 2: Connect with Devansh</span>
+        <span class="tg-action-sub">✨ Task 2: Connect to Telegram Bot (Very Important)</span>
         <a href="${telegramUrl}" target="_blank" class="tg-hero-btn" id="hero-tg-btn" onclick="handleTelegramClick()">
-          <span>✈️ Connect on Telegram</span>
+          <span>✈️ Start Chat on Telegram Bot</span>
         </a>
-        <p class="tg-hero-note">Direct, gentle check-ins with Devansh's Assistant on Telegram without any pressure.</p>
+        <p class="tg-hero-note">
+          <strong>Please do not message Devansh directly.</strong> Click above to chat with the bot he created for you — the rest of our conversation will be there, and you can safely close this website!
+        </p>
       </div>
     `;
 
@@ -257,7 +261,7 @@ async function sendMessage(textToSend) {
 
   } else {
     // If further turns occur
-    appendMessage('bot', "Devansh bas yeh jaanna chahta tha ki aap safe ho aur theek ho. Take good care of yourself 🤍");
+    appendMessage('bot', "Devansh tak aapka message pahunch gaya hai 🤍 Aage ki saari conversation Telegram Bot par hogi — please upar diye gaye 'Start Chat on Telegram Bot' button par click karke connect kar lijiye!");
   }
 
   sendBtn.disabled = false;
