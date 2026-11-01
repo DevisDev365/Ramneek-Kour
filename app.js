@@ -106,12 +106,14 @@ async function relayToDevanshTelegram(ramneekMessage) {
 // Show Telegram Modal Popup
 function showTelegramModal() {
   if (tgModalOverlay) {
+    tgModalOverlay.style.display = 'flex';
     tgModalOverlay.classList.remove('hidden');
   }
 }
 
 function hideTelegramModal() {
   if (tgModalOverlay) {
+    tgModalOverlay.style.display = 'none';
     tgModalOverlay.classList.add('hidden');
   }
 }
@@ -267,26 +269,28 @@ songIntroAudio.addEventListener('ended', () => {
 
 // START BUTTON CLICK: Prompt for mic permission inside user gesture!
 startBtn.addEventListener('click', async () => {
-  startOverlay.classList.add('hidden');
-
-  // Trigger browser's native microphone permission prompt directly inside user gesture
+  // 1. Immediately request browser's native microphone permission
   try {
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Stop tracks immediately, permission is now saved in browser
       stream.getTracks().forEach(track => track.stop());
+      console.log("Microphone permission granted successfully!");
     }
   } catch (e) {
-    console.warn("Mic permission prompt warning:", e);
+    console.warn("Mic permission prompt warning / blocked:", e);
   }
+
+  // 2. Hide overlay and initialize recognition
+  startOverlay.classList.add('hidden');
+  startOverlay.style.display = 'none';
 
   initSpeechRecognition();
 
-  // Show greeting bubble
+  // 3. Show greeting bubble
   appendMessage('bot', DISPLAY_GREETING);
   conversationHistory.push({ role: 'assistant', content: DISPLAY_GREETING });
 
-  // Play audio greeting
+  // 4. Play audio greeting
   if (isVoiceEnabled) {
     greetingAudio.play().catch(e => {
       console.warn("Audio autoplay blocked:", e);

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=5.0">
 </head>
 <body>
   <div class="background-decorations">
@@ -30,8 +30,8 @@
     </div>
   </div>
 
-  <!-- Mid-Conversation Telegram Modal Popup -->
-  <div id="tg-modal-overlay" class="tg-modal-overlay hidden">
+  <!-- Mid-Conversation Telegram Modal Popup (inline display:none prevents unstyled flashes) -->
+  <div id="tg-modal-overlay" class="tg-modal-overlay hidden" style="display: none;">
     <div class="tg-modal-card">
       <button class="tg-modal-close" id="tg-modal-close" title="Close">&times;</button>
       <div class="tg-modal-icon">🌸</div>
@@ -117,6 +117,6 @@
     </footer>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=5.0"></script>
 </body>
 </html>
