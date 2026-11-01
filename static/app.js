@@ -1,4 +1,7 @@
-// Ramneek Conversational Assistant Frontend - Storyline Implementation
+// Ramneek Conversational Assistant Frontend - Dual Mode (Static GitHub Pages + Backend)
+
+// Injected by GitHub Actions secret or backend
+let INCEPTION_API_KEY = "__INCEPTION_API_KEY__";
 
 // State
 let isVoiceEnabled = true;
@@ -131,20 +134,20 @@ function appendMessage(role, text, extraHtml = null) {
 async function checkRepoConnection() {
   try {
     const [repoRes, configRes] = await Promise.all([
-      fetch('/api/repo-status'),
-      fetch('/api/config')
+      fetch('/api/repo-status').catch(() => null),
+      fetch('/api/config').catch(() => null)
     ]);
 
-    if (repoRes.ok) {
+    if (repoRes && repoRes.ok) {
       const data = await repoRes.json();
       if (data.success) {
         repoStatusText.textContent = `Repo: ${data.commit_hash || 'Connected'}`;
-      } else {
-        repoStatusText.textContent = "Repo: Synced";
       }
+    } else {
+      repoStatusText.textContent = "Live";
     }
 
-    if (configRes.ok) {
+    if (configRes && configRes.ok) {
       const configData = await configRes.json();
       if (configData.telegram_url) telegramUrl = configData.telegram_url;
       if (configData.telegram_username) telegramUsername = configData.telegram_username;
@@ -152,7 +155,7 @@ async function checkRepoConnection() {
       if (configData.song_title) songTitle = configData.song_title;
     }
   } catch (err) {
-    repoStatusText.textContent = "Repo: Active";
+    repoStatusText.textContent = "Live";
   }
 }
 
@@ -198,7 +201,6 @@ function showTelegramGuidance() {
 
     if (openLink) {
       openLink.addEventListener('click', () => {
-        // When she clicks the link, give her a moment and trigger completion
         setTimeout(() => {
           completeStoryline();
         }, 3000);
@@ -248,7 +250,57 @@ function completeStoryline() {
   `;
 }
 
-// Send user message to backend
+// Request AI response (via backend or direct Inception API)
+async function requestAIResponse(userText) {
+  // Mode 1: Try backend /api/chat
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: userText, history: conversationHistory })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.reply;
+    }
+  } catch (e) {
+    // Backend not running, fallback to client-side Inception API
+  }
+
+  // Mode 2: Client-side Inception Labs API (mercury-3)
+  if (INCEPTION_API_KEY && !INCEPTION_API_KEY.startsWith("__")) {
+    try {
+      const apiRes = await fetch("https://api.inceptionlabs.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${INCEPTION_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "mercury-3",
+          messages: [
+            {
+              role: "system",
+              content: "You are Devansh's gentle, caring personal AI assistant speaking with Ramneek. Context: Devansh and Ramneek are not on talking terms. Devansh cares deeply and wanted to ensure she's doing fine. Tone: sweet, empathetic, brief (2 sentences), warm mix of Hindi/English/Hinglish."
+            },
+            ...conversationHistory
+          ]
+        })
+      });
+      if (apiRes.ok) {
+        const json = await apiRes.json();
+        return json.choices[0].message.content.trim();
+      }
+    } catch (err) {
+      console.warn("Direct Inception API call failed:", err);
+    }
+  }
+
+  // Fallback heartfelt message
+  return "Main bohot khush hoon yeh sunkar ki aap theek ho Ramneek. Devansh bas bohot chinta kar raha tha, par ab use tasalli ho gayi hai.";
+}
+
+// Send user message
 async function sendMessage(textToSend) {
   const text = (textToSend || messageInput.value).trim();
   if (!text) return;
@@ -263,37 +315,17 @@ async function sendMessage(textToSend) {
   conversationHistory.push({ role: 'user', content: text });
 
   // Update status banner
-  voiceStatusLabel.textContent = "Connecting with repo & thinking...";
+  voiceStatusLabel.textContent = "Thinking...";
 
   try {
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: text,
-        history: conversationHistory
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Server returned ${response.status}`);
-    }
-
-    const data = await response.json();
-    const reply = data.reply;
+    const reply = await requestAIResponse(text);
 
     // Append bot message
     appendMessage('bot', reply);
     conversationHistory.push({ role: 'assistant', content: reply });
 
-    // Update repo badge
-    if (data.commit_hash) {
-      repoStatusText.textContent = `Repo: ${data.commit_hash}`;
-    }
-
     // Speak aloud
     speakText(reply, () => {
-      // If we are at stage 0 (user answered well-being), transition to Telegram guidance
       if (storyStage === 0) {
         setTimeout(() => {
           showTelegramGuidance();
@@ -303,7 +335,7 @@ async function sendMessage(textToSend) {
 
   } catch (error) {
     console.error('Chat error:', error);
-    const errText = "I'm glad to hear from you Ramneek. Devansh just wanted to be sure you are safe and doing well.";
+    const errText = "Devansh bas yeh jaanna chahta tha ki aap theek ho... aur ab jaan kar use sach me bohot tasalli mili.";
     appendMessage('bot', errText);
     speakText(errText, () => {
       if (storyStage === 0) {
